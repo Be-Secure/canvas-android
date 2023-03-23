@@ -16,7 +16,6 @@
  */
 package com.instructure.teacher.features.modules.list.ui
 
-import android.app.Activity
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -27,10 +26,12 @@ import com.instructure.canvasapi2.models.ModuleItem
 import com.instructure.canvasapi2.utils.tryOrNull
 import com.instructure.interactions.router.Route
 import com.instructure.pandarecycler.PaginatedScrollListener
+import com.instructure.pandautils.features.discussion.router.DiscussionRouterFragment
 import com.instructure.pandautils.models.EditableFile
 import com.instructure.pandautils.utils.ViewStyler
-import com.instructure.pandautils.utils.color
+import com.instructure.pandautils.utils.backgroundColor
 import com.instructure.teacher.R
+import com.instructure.teacher.databinding.FragmentModuleListBinding
 import com.instructure.teacher.features.modules.list.ModuleListEvent
 import com.instructure.teacher.fragments.*
 import com.instructure.teacher.mobius.common.ui.MobiusView
@@ -38,13 +39,12 @@ import com.instructure.teacher.router.RouteMatcher
 import com.instructure.teacher.utils.setupBackButton
 import com.instructure.teacher.utils.viewMedia
 import com.spotify.mobius.functions.Consumer
-import kotlinx.android.synthetic.main.fragment_module_list.*
 
 class ModuleListView(
     inflater: LayoutInflater,
     parent: ViewGroup,
     val course: CanvasContext
-) : MobiusView<ModuleListViewState, ModuleListEvent>(R.layout.fragment_module_list, inflater, parent) {
+) : MobiusView<ModuleListViewState, ModuleListEvent, FragmentModuleListBinding>(inflater, FragmentModuleListBinding::inflate, parent) {
 
     private var consumer: Consumer<ModuleListEvent>? = null
 
@@ -71,16 +71,19 @@ class ModuleListView(
 
     init {
         // Toolbar setup
-        toolbar.subtitle = course.name
-        toolbar.setupBackButton(context)
-        ViewStyler.themeToolbarColored(context as Activity, toolbar, course)
+        binding.toolbar.apply {
+            subtitle = course.name
+            setupBackButton(activity)
+            ViewStyler.themeToolbarColored(activity, this, course)
+        }
 
-        recyclerView.layoutManager = layoutManager
-        recyclerView.adapter = adapter
+        binding.recyclerView.apply {
+            layoutManager = this@ModuleListView.layoutManager
+            adapter = this@ModuleListView.adapter
+            addOnScrollListener(scrollListener)
+        }
 
-        recyclerView.addOnScrollListener(scrollListener)
-
-        swipeRefreshLayout.setOnRefreshListener {
+        binding.swipeRefreshLayout.setOnRefreshListener {
             consumer?.accept(ModuleListEvent.PullToRefresh)
         }
     }
@@ -90,7 +93,7 @@ class ModuleListView(
     }
 
     override fun render(state: ModuleListViewState) {
-        swipeRefreshLayout.isRefreshing = state.showRefreshing
+        binding.swipeRefreshLayout.isRefreshing = state.showRefreshing
         adapter.setData(state.items, state.collapsedModuleIds)
         if (state.items.isEmpty()) scrollListener.resetScroll()
     }
@@ -106,8 +109,7 @@ class ModuleListView(
                 Route(null, AssignmentDetailsFragment::class.java, canvasContext, args)
             }
             ModuleItem.Type.Discussion -> {
-                val args = DiscussionsDetailsFragment.makeBundle(item.contentId)
-                Route(null, DiscussionsDetailsFragment::class.java, canvasContext, args)
+                DiscussionRouterFragment.makeRoute(canvasContext, item.contentId)
             }
             ModuleItem.Type.Page -> {
                 val args = PageDetailsFragment.makeBundle(item.pageUrl!!)
@@ -148,7 +150,7 @@ class ModuleListView(
             file = file,
             usageRights = requiresUsageRights,
             licenses = licenses,
-            courseColor = canvasContext.color,
+            courseColor = canvasContext.backgroundColor,
             canvasContext = canvasContext,
             iconRes = R.drawable.ic_document
         )
@@ -160,13 +162,13 @@ class ModuleListView(
             thumbnailUrl = file.thumbnailUrl,
             displayName = file.displayName,
             iconRes = R.drawable.ic_document,
-            toolbarColor = canvasContext.color,
+            toolbarColor = canvasContext.backgroundColor,
             editableFile = editableFile
         )
     }
 
     fun scrollToItem(itemId: Long) {
         val itemPosition = adapter.getItemVisualPosition(itemId)
-        recyclerView?.scrollToPosition(itemPosition)
+        binding.recyclerView.scrollToPosition(itemPosition)
     }
 }

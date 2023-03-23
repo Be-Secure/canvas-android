@@ -17,7 +17,6 @@
 package com.instructure.student.ui.e2e
 
 import android.util.Log
-import androidx.test.espresso.Espresso
 import com.instructure.canvas.espresso.E2E
 import com.instructure.panda_annotations.FeatureCategory
 import com.instructure.panda_annotations.Priority
@@ -55,7 +54,7 @@ class PeopleE2ETest : StudentTest() {
         val student1 = data.studentsList[0]
         val student2 = data.studentsList[1]
 
-        Log.d(STEP_TAG, "Login with user: ${student1.name}, login id: ${student1.loginId} , password: ${student1.password}")
+        Log.d(STEP_TAG, "Login with user: ${student1.name}, login id: ${student1.loginId}.")
         tokenLogin(student1)
         dashboardPage.waitForRender()
 
@@ -94,9 +93,9 @@ class PeopleE2ETest : StudentTest() {
         ViewUtils.pressBackButton(3)
 
         Log.d(STEP_TAG,"Sign out with ${student1.name} student.")
-        dashboardPage.logOut()
+        leftSideNavigationDrawerPage.logout()
 
-        Log.d(STEP_TAG, "Login with user: ${student2.name}, login id: ${student2.loginId} , password: ${student2.password}")
+        Log.d(STEP_TAG, "Login with user: ${student2.name}, login id: ${student2.loginId}.")
         tokenLogin(student2)
         dashboardPage.waitForRender()
 

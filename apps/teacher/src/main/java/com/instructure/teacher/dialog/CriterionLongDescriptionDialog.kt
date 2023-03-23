@@ -20,7 +20,6 @@ package com.instructure.teacher.dialog
 import android.app.Dialog
 import android.content.DialogInterface
 import android.os.Bundle
-import android.view.View
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import androidx.appcompat.app.AlertDialog
@@ -31,11 +30,12 @@ import com.instructure.pandautils.analytics.SCREEN_VIEW_CRITERION_LONG_DESCRIPTI
 import com.instructure.pandautils.analytics.ScreenView
 import com.instructure.pandautils.utils.*
 import com.instructure.pandautils.views.CanvasWebView
+import com.instructure.pandautils.views.HtmlFormatColors
 import com.instructure.teacher.R
 import com.instructure.teacher.activities.InternalWebViewActivity
+import com.instructure.teacher.databinding.DialogCriterionLongDescriptionBinding
 import com.instructure.teacher.router.RouteMatcher
-import kotlinx.android.synthetic.main.dialog_criterion_long_description.view.*
-import java.util.Locale
+import java.util.*
 
 @ScreenView(SCREEN_VIEW_CRITERION_LONG_DESCRIPTION)
 class CriterionLongDescriptionDialog : DialogFragment() {
@@ -57,9 +57,9 @@ class CriterionLongDescriptionDialog : DialogFragment() {
     }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        val content = View.inflate(requireContext(), R.layout.dialog_criterion_long_description, null)
+        val binding = DialogCriterionLongDescriptionBinding.inflate(layoutInflater)
 
-        with(content) {
+        with(binding) {
             // Show progress bar while loading description
             progressBar.setVisible()
             progressBar.announceForAccessibility(getString(R.string.loading))
@@ -67,8 +67,8 @@ class CriterionLongDescriptionDialog : DialogFragment() {
                 override fun onProgressChanged(view: WebView?, newProgress: Int) {
                     super.onProgressChanged(view, newProgress)
                     if (newProgress >= 100) {
-                        progressBar?.setGone()
-                        webView?.setVisible()
+                        progressBar.setGone()
+                        webView.setVisible()
                     }
                 }
             }
@@ -89,21 +89,21 @@ class CriterionLongDescriptionDialog : DialogFragment() {
             }
 
             // make the WebView background transparent
-            setBackgroundResource(android.R.color.transparent)
+            root.setBackgroundResource(android.R.color.transparent)
 
             // Load description
-            webView.loadHtml(mLongDescription, mDescription, R.color.backgroundLightestElevated)
+            webView.loadHtml(mLongDescription, mDescription, htmlFormatColors = HtmlFormatColors(backgroundColorRes = R.color.backgroundLightestElevated))
         }
 
         return AlertDialog.Builder(requireContext())
                 .setCancelable(true)
                 .setTitle(mDescription)
-                .setView(content)
+                .setView(binding.root)
                 .setPositiveButton(getString(android.R.string.ok).uppercase(Locale.getDefault()), null)
                 .create()
                 .apply {
                     setOnShowListener {
-                        getButton(DialogInterface.BUTTON_POSITIVE).setTextColor(ThemePrefs.buttonColor)
+                        getButton(DialogInterface.BUTTON_POSITIVE).setTextColor(ThemePrefs.textButtonColor)
                     }
                 }
     }
@@ -113,5 +113,4 @@ class CriterionLongDescriptionDialog : DialogFragment() {
         dialog?.let { if (retainInstance) it.setDismissMessage(null) }
         super.onDestroyView()
     }
-
 }

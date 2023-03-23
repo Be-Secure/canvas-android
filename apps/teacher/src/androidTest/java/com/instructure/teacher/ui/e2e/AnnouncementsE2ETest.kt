@@ -34,9 +34,7 @@ class AnnouncementsE2ETest : TeacherTest() {
 
     override fun displaysPageObjects() = Unit
 
-    override fun enableAndConfigureAccessibilityChecks() {
-        //We don't want to see accessibility errors on E2E tests
-    }
+    override fun enableAndConfigureAccessibilityChecks() = Unit
 
     @E2E
     @Test
@@ -49,8 +47,7 @@ class AnnouncementsE2ETest : TeacherTest() {
         val course = data.coursesList[0]
         val announcement = data.announcementsList[0]
 
-
-        Log.d(STEP_TAG, "Login with user: ${teacher.name}, login id: ${teacher.loginId} , password: ${teacher.password}")
+        Log.d(STEP_TAG, "Login with user: ${teacher.name}, login id: ${teacher.loginId}.")
         tokenLogin(teacher)
         dashboardPage.waitForRender()
 

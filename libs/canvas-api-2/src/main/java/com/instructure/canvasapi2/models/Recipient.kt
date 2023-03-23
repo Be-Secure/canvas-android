@@ -18,8 +18,7 @@
 package com.instructure.canvasapi2.models
 
 import com.google.gson.annotations.SerializedName
-import kotlinx.android.parcel.Parcelize
-import java.util.HashMap
+import kotlinx.parcelize.Parcelize
 
 @Parcelize
 data class Recipient(
@@ -27,6 +26,8 @@ data class Recipient(
         val stringId: String? = null,
         val name: String? = null,
         val pronouns: String? = null,
+        @SerializedName("full_name")
+        val fullName: String? = null,
         @SerializedName("user_count")
         val userCount: Int = 0,
         @SerializedName("item_count")

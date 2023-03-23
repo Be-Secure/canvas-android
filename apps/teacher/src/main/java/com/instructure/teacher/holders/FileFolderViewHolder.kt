@@ -17,7 +17,6 @@
 package com.instructure.teacher.holders
 
 import android.content.Context
-import android.view.View
 import androidx.recyclerview.widget.RecyclerView
 import com.instructure.canvasapi2.models.FileFolder
 import com.instructure.canvasapi2.utils.NumberHelper
@@ -27,11 +26,10 @@ import com.instructure.pandautils.utils.setGone
 import com.instructure.pandautils.utils.setInvisible
 import com.instructure.pandautils.utils.setVisible
 import com.instructure.teacher.R
-import kotlinx.android.synthetic.main.adapter_file_folder.view.*
+import com.instructure.teacher.databinding.AdapterFileFolderBinding
 
-class FileFolderViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-
-    fun bind(item: FileFolder, courseColor: Int, context: Context, callback: (FileFolder) -> Unit) = with(itemView){
+class FileFolderViewHolder(private val binding: AdapterFileFolderBinding) : RecyclerView.ViewHolder(binding.root) {
+    fun bind(item: FileFolder, iconColor: Int, context: Context, callback: (FileFolder) -> Unit) = with(binding) {
         fileFolderLayout.onClick { callback(item) }
         fileIconOrImage.setPublishedStatus(item) // Locked files are "unpublished"
 
@@ -59,24 +57,20 @@ class FileFolderViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
             } else {
                 val contentType = item.contentType.orEmpty()
                 when {
-                    contentType.contains("pdf") -> fileIconOrImage.setIcon(R.drawable.ic_pdf, courseColor)
-                    contentType.contains("presentation") -> fileIconOrImage.setIcon(R.drawable.ic_ppt, courseColor)
-                    contentType.contains("spreadsheet") -> fileIconOrImage.setIcon(R.drawable.ic_spreadsheet, courseColor)
-                    contentType.contains("wordprocessing") -> fileIconOrImage.setIcon(R.drawable.ic_word_doc, courseColor)
-                    contentType.contains("zip") -> fileIconOrImage.setIcon(R.drawable.ic_zip, courseColor)
-                    contentType.contains("image") -> fileIconOrImage.setIcon(R.drawable.ic_image, courseColor)
-                    else -> fileIconOrImage.setIcon(R.drawable.ic_document, courseColor)
+                    contentType.contains("pdf") -> fileIconOrImage.setIcon(R.drawable.ic_pdf, iconColor)
+                    contentType.contains("presentation") -> fileIconOrImage.setIcon(R.drawable.ic_ppt, iconColor)
+                    contentType.contains("spreadsheet") -> fileIconOrImage.setIcon(R.drawable.ic_spreadsheet, iconColor)
+                    contentType.contains("wordprocessing") -> fileIconOrImage.setIcon(R.drawable.ic_word_doc, iconColor)
+                    contentType.contains("zip") -> fileIconOrImage.setIcon(R.drawable.ic_zip, iconColor)
+                    contentType.contains("image") -> fileIconOrImage.setIcon(R.drawable.ic_image, iconColor)
+                    else -> fileIconOrImage.setIcon(R.drawable.ic_document, iconColor)
                 }
             }
         } else { // This is a folder
             fileName.text = item.name
             fileName.contentDescription = itemView.resources.getString(R.string.folderTalkBack, item.name)
             fileSize.text = ""
-            fileIconOrImage.setIcon(R.drawable.ic_folder_solid, courseColor)
+            fileIconOrImage.setIcon(R.drawable.ic_folder_solid, iconColor)
         }
-    }
-
-    companion object {
-        const val HOLDER_RES_ID: Int = R.layout.adapter_file_folder
     }
 }

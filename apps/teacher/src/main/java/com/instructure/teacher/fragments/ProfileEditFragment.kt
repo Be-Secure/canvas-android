@@ -19,19 +19,15 @@ package com.instructure.teacher.fragments
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
-import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
 import android.text.InputType
-import android.util.TypedValue
 import android.view.WindowManager
 import android.widget.TextView
 import android.widget.Toast
 import androidx.loader.app.LoaderManager
 import androidx.loader.content.AsyncTaskLoader
 import androidx.loader.content.Loader
-import com.bumptech.glide.Glide
 import com.instructure.canvasapi2.StatusCallback
 import com.instructure.canvasapi2.managers.FileFolderManager
 import com.instructure.canvasapi2.managers.FileUploadManager
@@ -46,18 +42,18 @@ import com.instructure.canvasapi2.utils.LinkHeaders
 import com.instructure.canvasapi2.utils.validOrNull
 import com.instructure.pandautils.analytics.SCREEN_VIEW_PROFILE_EDIT
 import com.instructure.pandautils.analytics.ScreenView
+import com.instructure.pandautils.binding.viewBinding
 import com.instructure.pandautils.fragments.BasePresenterFragment
 import com.instructure.pandautils.utils.*
 import com.instructure.pandautils.utils.MediaUploadUtils.chooseFromGalleryBecausePermissionsAlreadyGranted
 import com.instructure.pandautils.utils.MediaUploadUtils.takeNewPhotoBecausePermissionsAlreadyGranted
 import com.instructure.teacher.R
+import com.instructure.teacher.databinding.FragmentProfileEditBinding
 import com.instructure.teacher.factory.ProfileEditFragmentPresenterFactory
 import com.instructure.teacher.presenters.ProfileEditFragmentPresenter
-import com.instructure.teacher.utils.getColorCompat
 import com.instructure.teacher.utils.setupCloseButton
 import com.instructure.teacher.utils.setupMenu
 import com.instructure.teacher.viewinterface.ProfileEditFragmentView
-import kotlinx.android.synthetic.main.fragment_profile_edit.*
 import retrofit2.Response
 import java.io.File
 
@@ -66,6 +62,7 @@ class ProfileEditFragment : BasePresenterFragment<
         ProfileEditFragmentPresenter,
         ProfileEditFragmentView>(), ProfileEditFragmentView, LoaderManager.LoaderCallbacks<AvatarWrapper> {
 
+    private val binding by viewBinding(FragmentProfileEditBinding::bind)
 
     private var mLoaderBundle: Bundle? = null
 
@@ -79,7 +76,7 @@ class ProfileEditFragment : BasePresenterFragment<
 
     override fun layoutResId() = R.layout.fragment_profile_edit
 
-    override fun onActivityCreated(savedInstanceState: Bundle?) {
+    override fun onActivityCreated(savedInstanceState: Bundle?) = with(binding) {
         super.onActivityCreated(savedInstanceState)
 
         profileBanner.setImageResource(
@@ -88,34 +85,22 @@ class ProfileEditFragment : BasePresenterFragment<
 
         val user = user
 
-        if(ProfileUtils.shouldLoadAltAvatarImage(user?.avatarUrl)) {
-            val initials = ProfileUtils.getUserInitials(user?.shortName ?: "")
-            val color = requireContext().getColorCompat(R.color.textDark)
-            val drawable = TextDrawable.builder()
-                    .beginConfig()
-                    .height(requireContext().resources.getDimensionPixelSize(R.dimen.profileAvatarSize))
-                    .width(requireContext().resources.getDimensionPixelSize(R.dimen.profileAvatarSize))
-                    .toUpperCase()
-                    .useFont(Typeface.DEFAULT_BOLD)
-                    .textColor(color)
-                    .endConfig()
-                    .buildRound(initials, Color.WHITE)
-            usersAvatar.borderColor = requireContext().getColorCompat(R.color.textDark)
-            usersAvatar.borderWidth = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 6F, requireContext().resources.displayMetrics).toInt()
-            usersAvatar.setImageDrawable(drawable)
-        } else {
-            updateAvatarImage(user?.avatarUrl)
-        }
+        ProfileUtils.loadAvatarForUser(usersAvatar, user?.shortName, user?.avatarUrl, 0)
 
         usersName.setText(user?.shortName)
         usersName.hint = user?.shortName
 
         ViewStyler.themeEditText(requireContext(), usersName, ThemePrefs.brandColor)
-        ViewStyler.colorImageView(profileCameraIcon, ThemePrefs.buttonColor)
+        ViewStyler.colorImageView(profileCameraIcon, ThemePrefs.textButtonColor)
         ViewStyler.themeProgressBar(profileCameraLoadingIndicator, ThemePrefs.brandColor)
 
         //Restore loader if necessary
-        LoaderUtils.restoreLoaderFromBundle(LoaderManager.getInstance(this), savedInstanceState, this, R.id.avatarLoaderId)
+        LoaderUtils.restoreLoaderFromBundle(
+            LoaderManager.getInstance(this@ProfileEditFragment),
+            savedInstanceState,
+            this@ProfileEditFragment,
+            R.id.avatarLoaderId
+        )
         requireActivity().window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN)
     }
 
@@ -129,19 +114,19 @@ class ProfileEditFragment : BasePresenterFragment<
         setupToolbar()
     }
 
-    fun setupToolbar() {
-        toolbar.setupCloseButton(this)
+    fun setupToolbar() = with(binding) {
+        toolbar.setupCloseButton(this@ProfileEditFragment)
         toolbar.title = getString(R.string.editProfile)
         toolbar.setupMenu(R.menu.menu_save_generic) { saveProfile() }
         ViewStyler.themeToolbarLight(requireActivity(), toolbar)
         ViewStyler.setToolbarElevationSmall(requireContext(), toolbar)
-        saveButton?.setTextColor(ThemePrefs.buttonColor)
+        saveButton?.setTextColor(ThemePrefs.textButtonColor)
     }
 
-    override fun readyToLoadUI(user: User?) {
+    override fun readyToLoadUI(user: User?) = with(binding) {
         profileCameraIconWrapper.setVisible(user?.canUpdateAvatar() == true)
         profileCameraIconWrapper.onClickWithRequireNetwork {
-            MediaUploadUtils.showPickImageDialog(this)
+            MediaUploadUtils.showPickImageDialog(this@ProfileEditFragment)
         }
         if(profileCameraLoadingIndicator.isShown) { profileCameraLoadingIndicator.announceForAccessibility(getString(R.string.loading))}
 
@@ -152,14 +137,12 @@ class ProfileEditFragment : BasePresenterFragment<
     }
 
     private fun saveProfile(){
-        val name = usersName.text.toString().validOrNull() ?: user?.shortName ?: ""
-        presenter.saveChanges(name, user?.bio ?: "")
+        val name = binding.usersName.text.toString().validOrNull() ?: user?.shortName.orEmpty()
+        presenter.saveChanges(name, user?.bio.orEmpty())
     }
 
     private fun updateAvatarImage(url: String?) {
-        usersAvatar.borderColor = Color.WHITE
-        usersAvatar.borderWidth = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 6F, requireContext().resources.displayMetrics).toInt()
-        Glide.with(requireContext()).load(url).into(usersAvatar)
+        ProfileUtils.loadAvatarForUser(binding.usersAvatar, user?.shortName, url, 0)
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
@@ -242,13 +225,13 @@ class ProfileEditFragment : BasePresenterFragment<
 
     override fun onPresenterPrepared(presenter: ProfileEditFragmentPresenter) {}
 
-    private fun hideProgressBar() {
+    private fun hideProgressBar() = with(binding) {
         profileCameraLoadingIndicator.setGone()
         profileCameraIcon.setVisible()
         profileCameraIconWrapper.isClickable = true
     }
 
-    private fun showProgressBar() {
+    private fun showProgressBar() = with(binding) {
         profileCameraLoadingIndicator.setVisible()
         profileCameraIcon.setGone()
         profileCameraIconWrapper.isClickable = false

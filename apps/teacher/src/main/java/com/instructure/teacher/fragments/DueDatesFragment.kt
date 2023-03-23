@@ -16,7 +16,6 @@
  */
 package com.instructure.teacher.fragments
 
-import android.graphics.Color
 import android.os.Bundle
 import android.view.View
 import androidx.recyclerview.widget.RecyclerView
@@ -27,11 +26,13 @@ import com.instructure.canvasapi2.utils.APIHelper
 import com.instructure.interactions.router.Route
 import com.instructure.pandautils.analytics.SCREEN_VIEW_DUE_DATES
 import com.instructure.pandautils.analytics.ScreenView
+import com.instructure.pandautils.binding.viewBinding
 import com.instructure.pandautils.fragments.BaseSyncFragment
 import com.instructure.pandautils.utils.*
 import com.instructure.pandautils.views.EmptyView
 import com.instructure.teacher.R
 import com.instructure.teacher.adapters.DueDatesAdapter
+import com.instructure.teacher.databinding.FragmentAssignmentDueDatesBinding
 import com.instructure.teacher.dialog.NoInternetConnectionDialog
 import com.instructure.teacher.factory.DueDatesPresenterFactory
 import com.instructure.teacher.holders.DueDateViewHolder
@@ -42,10 +43,11 @@ import com.instructure.teacher.utils.RecyclerViewUtils
 import com.instructure.teacher.utils.setupBackButtonAsBackPressedOnly
 import com.instructure.teacher.utils.setupMenu
 import com.instructure.teacher.viewinterface.DueDatesView
-import kotlinx.android.synthetic.main.fragment_assignment_due_dates.*
 
 @ScreenView(SCREEN_VIEW_DUE_DATES)
 class DueDatesFragment : BaseSyncFragment<DueDateGroup, DueDatesPresenter, DueDatesView, DueDateViewHolder, DueDatesAdapter>(), DueDatesView {
+
+    private val binding by viewBinding(FragmentAssignmentDueDatesBinding::bind)
 
     var mAssignment: Assignment by ParcelableArg(key = ASSIGNMENT)
     var mCourse: Course by ParcelableArg(Course())
@@ -66,20 +68,20 @@ class DueDatesFragment : BaseSyncFragment<DueDateGroup, DueDatesPresenter, DueDa
     }
 
     override fun hideMenu() {
-        toolbar.menu.clear()
+        binding.toolbar.menu.clear()
     }
 
-    private fun setupToolbar() {
-        toolbar.setupBackButtonAsBackPressedOnly(this)
+    private fun setupToolbar() = with(binding) {
+        toolbar.setupBackButtonAsBackPressedOnly(this@DueDatesFragment)
         toolbar.title = getString(R.string.page_title_due_dates)
         if(!isTablet) {
             toolbar.subtitle = mCourse.name
         }
-        ViewStyler.themeToolbarColored(requireActivity(), toolbar, mCourse.color, requireContext().getColor(R.color.white))
+        ViewStyler.themeToolbarColored(requireActivity(), toolbar, mCourse.backgroundColor, requireContext().getColor(R.color.white))
     }
 
     override fun showMenu(assignment: Assignment) {
-        toolbar.setupMenu(R.menu.menu_edit_generic) {
+        binding.toolbar.setupMenu(R.menu.menu_edit_generic) {
             if(APIHelper.hasNetworkConnection()) {
                 when {
                     assignment.submissionTypesRaw.contains(Assignment.SubmissionType.ONLINE_QUIZ.apiString) -> {

@@ -18,7 +18,7 @@
 apply plugin: 'com.android.library'
 apply plugin: 'com.apollographql.apollo'
 apply plugin: 'kotlin-android'
-apply plugin: 'kotlin-android-extensions'
+apply plugin: 'kotlin-parcelize'
 apply plugin: 'au.com.dius.pact'
 apply plugin: 'kotlin-kapt'
 apply plugin: 'dagger.hilt.android.plugin'
@@ -56,10 +56,10 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
-}
 
-androidExtensions {
-    experimental = true
+    hilt {
+        enableAggregatingTask = false
+    }
 }
 
 apollo {
@@ -135,12 +135,19 @@ dependencies {
     api Libs.PAPERDB
 
     // Firebase
-    implementation platform(Libs.FIREBASE_BOM)
+    implementation platform(Libs.FIREBASE_BOM) {
+        exclude group: 'com.google.firebase', module: 'firebase-analytics'
+    }
     implementation Libs.FIREBASE_CORE
     implementation Libs.FIREBASE_CONFIG
 
     implementation Libs.HILT
     kapt Libs.HILT_COMPILER
+
+    implementation Libs.ROOM
+    kapt Libs.ROOM_COMPILER
+
+    implementation Libs.HEAP
 }
 
 // Define our pact-publish object

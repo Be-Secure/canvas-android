@@ -17,7 +17,6 @@
 
 package com.instructure.teacher.fragments
 
-import android.graphics.Color
 import android.os.Bundle
 import android.webkit.WebChromeClient
 import android.webkit.WebView
@@ -33,11 +32,13 @@ import com.instructure.interactions.MasterDetailInteractions
 import com.instructure.interactions.router.Route
 import com.instructure.pandautils.analytics.SCREEN_VIEW_PAGE_DETAILS
 import com.instructure.pandautils.analytics.ScreenView
+import com.instructure.pandautils.binding.viewBinding
 import com.instructure.pandautils.fragments.BasePresenterFragment
 import com.instructure.pandautils.utils.*
 import com.instructure.pandautils.views.CanvasWebView
 import com.instructure.teacher.R
 import com.instructure.teacher.activities.InternalWebViewActivity
+import com.instructure.teacher.databinding.FragmentPageDetailsBinding
 import com.instructure.teacher.dialog.NoInternetConnectionDialog
 import com.instructure.teacher.events.PageDeletedEvent
 import com.instructure.teacher.events.PageUpdatedEvent
@@ -49,18 +50,18 @@ import com.instructure.teacher.utils.setupBackButtonWithExpandCollapseAndBack
 import com.instructure.teacher.utils.setupMenu
 import com.instructure.teacher.utils.updateToolbarExpandCollapseIcon
 import com.instructure.teacher.viewinterface.PageDetailsView
-import kotlinx.android.synthetic.main.fragment_page_details.*
 import kotlinx.coroutines.Job
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
-import java.net.URLDecoder
 
 @ScreenView(SCREEN_VIEW_PAGE_DETAILS)
 class PageDetailsFragment : BasePresenterFragment<
         PageDetailsPresenter,
         PageDetailsView>(),
         PageDetailsView, Identity {
+
+    private val binding by viewBinding(FragmentPageDetailsBinding::bind)
 
     private var mCanvasContext: CanvasContext by ParcelableArg(default = Course())
     private var mPage: Page by ParcelableArg(Page(), PAGE)
@@ -87,15 +88,14 @@ class PageDetailsFragment : BasePresenterFragment<
     }
 
     override fun onRefreshFinished() {
-        loading.setGone()
+        binding.loading.setGone()
     }
 
     override fun onRefreshStarted() {
-        loading.setVisible()
+        binding.loading.setVisible()
     }
 
-    override fun onReadySetGo(presenter: PageDetailsPresenter) {
-
+    override fun onReadySetGo(presenter: PageDetailsPresenter): Unit = with(binding) {
         if (mPage.frontPage) {
             presenter.getFrontPage(mCanvasContext, true)
         } else if (!mPageId.isBlank()) {
@@ -105,17 +105,17 @@ class PageDetailsFragment : BasePresenterFragment<
         }
         setupToolbar()
 
-        canvasWebView.canvasWebViewClientCallback = object : CanvasWebView.CanvasWebViewClientCallback {
+        canvasWebViewWraper.webView.canvasWebViewClientCallback = object : CanvasWebView.CanvasWebViewClientCallback {
             override fun openMediaFromWebView(mime: String, url: String, filename: String) {
                 RouteMatcher.openMedia(activity, url)
             }
 
             override fun onPageFinishedCallback(webView: WebView, url: String) {
-                loading?.setGone()
+                loading.setGone()
             }
 
             override fun onPageStartedCallback(webView: WebView, url: String) {
-                loading?.setVisible()
+                loading.setVisible()
             }
 
             override fun canRouteInternallyDelegate(url: String): Boolean = RouteMatcher.canRouteInternally(activity, url, ApiPrefs.domain, false)
@@ -125,21 +125,21 @@ class PageDetailsFragment : BasePresenterFragment<
             }
         }
 
-        canvasWebView.webChromeClient = (object : WebChromeClient() {
+        canvasWebViewWraper.webView.webChromeClient = (object : WebChromeClient() {
             override fun onProgressChanged(view: WebView?, newProgress: Int) {
                 super.onProgressChanged(view, newProgress)
                 if (newProgress >= 100) {
-                    loading?.setGone()
+                    loading.setGone()
                 }
             }
         })
 
-        canvasWebView.canvasEmbeddedWebViewCallback = object : CanvasWebView.CanvasEmbeddedWebViewCallback {
+        canvasWebViewWraper.webView.canvasEmbeddedWebViewCallback = object : CanvasWebView.CanvasEmbeddedWebViewCallback {
             override fun launchInternalWebViewFragment(url: String) = requireActivity().startActivity(InternalWebViewActivity.createIntent(requireActivity(), url, getString(R.string.utils_externalToolTitle), true))
             override fun shouldLaunchInternalWebViewFragment(url: String): Boolean = !RouteMatcher.canRouteInternally(activity, url, ApiPrefs.domain, false)
         }
 
-        canvasWebView.setMediaDownloadCallback (object : CanvasWebView.MediaDownloadCallback{
+        canvasWebViewWraper.webView.setMediaDownloadCallback (object : CanvasWebView.MediaDownloadCallback{
             override fun downloadMedia(mime: String?, url: String?, filename: String?) {
                 downloadUrl = url
                 downloadFileName = filename
@@ -174,27 +174,24 @@ class PageDetailsFragment : BasePresenterFragment<
 
     override fun populatePageDetails(page: Page) {
         mPage = page
-        loadHtmlJob = canvasWebView.loadHtmlWithIframes(requireContext(), isTablet, page.body.orEmpty(), ::loadPageHtml, {
-            val args = LtiLaunchFragment.makeBundle(mCanvasContext, URLDecoder.decode(it, "utf-8"), getString(R.string.utils_externalToolTitle), true)
-            RouteMatcher.route(requireContext(), Route(LtiLaunchFragment::class.java, canvasContext, args))
-        }, page.title)
+        loadHtmlJob = binding.canvasWebViewWraper.webView.loadHtmlWithIframes(requireContext(), page.body, {
+            binding.canvasWebViewWraper.loadHtml(it, page.title, baseUrl = mPage.htmlUrl)
+        }) {
+            LtiLaunchFragment.routeLtiLaunchFragment(requireContext(), mCanvasContext, it)
+        }
         setupToolbar()
-    }
-
-    private fun loadPageHtml(html: String, contentDescription: String?) {
-        canvasWebView.loadHtml(html, contentDescription)
     }
 
     override fun onError(stringId: Int) {
         Toast.makeText(requireContext(), stringId, Toast.LENGTH_SHORT).show()
     }
 
-    private fun setupToolbar() {
+    private fun setupToolbar() = with(binding) {
         toolbar.setupMenu(R.menu.menu_page_details) { openEditPage(mPage) }
 
-        toolbar.setupBackButtonWithExpandCollapseAndBack(this) {
-            toolbar.updateToolbarExpandCollapseIcon(this)
-            ViewStyler.themeToolbarColored(requireActivity(), toolbar, mCanvasContext.color, requireContext().getColor(R.color.white))
+        toolbar.setupBackButtonWithExpandCollapseAndBack(this@PageDetailsFragment) {
+            toolbar.updateToolbarExpandCollapseIcon(this@PageDetailsFragment)
+            ViewStyler.themeToolbarColored(requireActivity(), toolbar, mCanvasContext.backgroundColor, requireContext().getColor(R.color.white))
             (activity as MasterDetailInteractions).toggleExpandCollapse()
         }
 
@@ -202,7 +199,7 @@ class PageDetailsFragment : BasePresenterFragment<
         if (!isTablet) {
             toolbar.subtitle = mCanvasContext.name
         }
-        ViewStyler.themeToolbarColored(requireActivity(), toolbar, mCanvasContext.color, requireContext().getColor(R.color.white))
+        ViewStyler.themeToolbarColored(requireActivity(), toolbar, mCanvasContext.backgroundColor, requireContext().getColor(R.color.white))
     }
 
     private fun openEditPage(page: Page) {
@@ -239,9 +236,9 @@ class PageDetailsFragment : BasePresenterFragment<
 
         const val PAGE_ID = "pageDetailsId"
 
-        fun makeBundle(page: Page): Bundle = Bundle().apply { putParcelable(PageDetailsFragment.PAGE, page) }
+        fun makeBundle(page: Page): Bundle = Bundle().apply { putParcelable(PAGE, page) }
 
-        fun makeBundle(pageId: String): Bundle = Bundle().apply { putString(PageDetailsFragment.PAGE_ID, pageId) }
+        fun makeBundle(pageId: String): Bundle = Bundle().apply { putString(PAGE_ID, pageId) }
 
 
         fun newInstance(canvasContext: CanvasContext, args: Bundle) = PageDetailsFragment().withArgs(args).apply {

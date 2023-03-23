@@ -19,7 +19,7 @@ package com.instructure.canvasapi2.models
 import android.os.Parcelable
 import com.google.gson.annotations.SerializedName
 import com.instructure.canvasapi2.utils.NaturalOrderComparator
-import kotlinx.android.parcel.Parcelize
+import kotlinx.parcelize.Parcelize
 import java.util.*
 
 @Parcelize
@@ -43,7 +43,9 @@ data class Page(
         @SerializedName("published")
         var published: Boolean = false,
         @SerializedName("editing_roles")
-        var editingRoles: String? = null
+        var editingRoles: String? = null,
+        @SerializedName("html_url")
+        var htmlUrl: String? = null
 ) : CanvasModel<Page>(), Parcelable {
     override val comparisonDate get() = updatedAt
     override val comparisonString get() = title

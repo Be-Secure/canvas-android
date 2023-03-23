@@ -22,7 +22,7 @@ import com.instructure.canvasapi2.utils.Logger
 import com.instructure.canvasapi2.utils.isCreationPending
 import com.instructure.canvasapi2.utils.isNullOrEmpty
 import com.instructure.canvasapi2.utils.toDate
-import kotlinx.android.parcel.Parcelize
+import kotlinx.parcelize.Parcelize
 import java.util.*
 
 @Parcelize
@@ -60,6 +60,8 @@ data class Course(
         val accessRestrictedByDate: Boolean = false,
         @SerializedName("image_download_url")
         val imageUrl: String? = null,
+        @SerializedName("banner_image_download_url")
+        val bannerImageUrl: String? = null,
         @SerializedName("has_weighted_grading_periods")
         val isWeightedGradingPeriods: Boolean = false,
         @SerializedName("has_grading_periods")

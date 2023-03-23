@@ -19,13 +19,10 @@
 package com.instructure.student.test.assignment.details.submissionDetails.commentTab
 
 import android.app.Activity
-import com.google.firebase.analytics.FirebaseAnalytics
 import com.instructure.canvasapi2.models.Assignment
 import com.instructure.canvasapi2.models.Attachment
 import com.instructure.canvasapi2.models.Course
 import com.instructure.canvasapi2.models.Submission
-import com.instructure.canvasapi2.utils.Analytics
-import com.instructure.canvasapi2.utils.AnalyticsEventConstants
 import com.instructure.pandautils.utils.PermissionUtils
 import com.instructure.pandautils.utils.requestPermissions
 import com.instructure.student.mobius.assignmentDetails.submissionDetails.SubmissionDetailsSharedEvent
@@ -51,14 +48,12 @@ class SubmissionCommentsEffectHandlerTest : Assert(){
 
     private val mockView: SubmissionCommentsView = mockk(relaxed = true)
     private val context: Activity = mockk(relaxed = true)
-    private val firebase: FirebaseAnalytics = mockk(relaxed = true)
     private val effectHandler = SubmissionCommentsEffectHandler(context).apply { view = mockView }
     private val eventConsumer: Consumer<SubmissionCommentsEvent> = mockk(relaxed = true)
     private val connection = effectHandler.connect(eventConsumer)
 
     @Before
     fun setup() {
-        Analytics.firebase = firebase
         Dispatchers.setMain(Executors.newSingleThreadExecutor().asCoroutineDispatcher())
     }
 
@@ -80,11 +75,12 @@ class SubmissionCommentsEffectHandlerTest : Assert(){
             assignmentId = 123L,
             assignmentName = "Test Assignment",
             courseId = 123L,
-            isGroupMessage = false
+            isGroupMessage = false,
+            attemptId = 1
         )
         mockkObject(SubmissionService.Companion)
         every {
-            SubmissionService.startMediaCommentUpload(any(), any(), any(), any(), any(), any())
+            SubmissionService.startMediaCommentUpload(any(), any(), any(), any(), any(), any(), any())
         } returns Unit
 
         connection.accept(effect)
@@ -96,15 +92,11 @@ class SubmissionCommentsEffectHandlerTest : Assert(){
                 123L,
                 "Test Assignment",
                 File("test"),
-                false
+                false,
+                1
             )
         }
 
-        verify {
-            firebase.logEvent(AnalyticsEventConstants.SUBMISSION_COMMENTS_MEDIA_REPLY, null)
-        }
-
-        confirmVerified(firebase)
         confirmVerified(SubmissionService)
     }
 
@@ -210,12 +202,13 @@ class SubmissionCommentsEffectHandlerTest : Assert(){
             assignmentId = 123L,
             assignmentName = "Test Assignment",
             courseId = 456L,
-            isGroupMessage = false
+            isGroupMessage = false,
+            attemptId = 1
         )
 
         mockkObject(SubmissionService.Companion)
         every {
-            SubmissionService.startCommentUpload(any(), any(), any(), any(), any(), any(), any())
+            SubmissionService.startCommentUpload(any(), any(), any(), any(), any(), any(), any(), any())
         } returns Unit
 
         connection.accept(effect)
@@ -228,15 +221,11 @@ class SubmissionCommentsEffectHandlerTest : Assert(){
                 assignmentName = "Test Assignment",
                 message = "Test message",
                 attachments = emptyList(),
-                isGroupMessage = false
+                isGroupMessage = false,
+                attemptId = 1
             )
         }
 
-        verify {
-            firebase.logEvent(AnalyticsEventConstants.SUBMISSION_COMMENTS_TEXT_REPLY, null)
-        }
-
-        confirmVerified(firebase)
         confirmVerified(SubmissionService)
     }
 
@@ -244,11 +233,11 @@ class SubmissionCommentsEffectHandlerTest : Assert(){
     fun `ShowFilePicker effect results in view calling showFilePicker`() {
         val course = Course(name = "Test Course")
         val assignment = Assignment(name = "Test Assignment")
-        val effect = SubmissionCommentsEffect.ShowFilePicker(course, assignment)
+        val effect = SubmissionCommentsEffect.ShowFilePicker(course, assignment, 1)
         connection.accept(effect)
 
         verify(timeout = 100) {
-            mockView.showFilePicker(course, assignment)
+            mockView.showFilePicker(course, assignment, 1)
         }
 
         confirmVerified(mockView)

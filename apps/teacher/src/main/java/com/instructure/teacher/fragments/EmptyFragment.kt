@@ -15,18 +15,20 @@
  */
 package com.instructure.teacher.fragments
 
-import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import com.instructure.canvasapi2.models.Course
+import com.instructure.pandautils.binding.viewBinding
 import com.instructure.pandautils.utils.*
 import com.instructure.teacher.R
-import kotlinx.android.synthetic.main.fragment_empty.*
+import com.instructure.teacher.databinding.FragmentEmptyBinding
 
 class EmptyFragment: Fragment() {
+
+    private val binding by viewBinding(FragmentEmptyBinding::bind)
 
     private var mCourse: Course? by NullableParcelableArg()
     private var mTitle: String by StringArg()
@@ -40,11 +42,13 @@ class EmptyFragment: Fragment() {
         setupToolbar()
     }
 
-    private fun setupToolbar() {
+    private fun setupToolbar() = with(binding) {
         toolbar.title = ""
         emptyTitle.text = mTitle
         emptyMessage.text = getString(R.string.emptyDetailsMessage)
-        ViewStyler.themeToolbarColored(requireActivity(), toolbar, mCourse?.color ?: ThemePrefs.primaryColor, requireContext().getColor(R.color.white))
+        val toolbarBackgroundColor = mCourse?.backgroundColor ?: ThemePrefs.primaryColor
+        val toolbarTextColor = if (mCourse?.backgroundColor != null) requireContext().getColor(R.color.white) else ThemePrefs.primaryTextColor
+        ViewStyler.themeToolbarColored(requireActivity(), toolbar, toolbarBackgroundColor, toolbarTextColor)
     }
 
     companion object {

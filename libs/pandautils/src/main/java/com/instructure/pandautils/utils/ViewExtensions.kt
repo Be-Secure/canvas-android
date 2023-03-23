@@ -34,6 +34,7 @@ import android.text.TextWatcher
 import android.util.AttributeSet
 import android.util.TypedValue
 import android.view.*
+import android.view.View.OnClickListener
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.animation.AlphaAnimation
@@ -54,10 +55,14 @@ import androidx.core.view.ViewCompat
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.bumptech.glide.load.DataSource
+import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.load.engine.bitmap_recycle.BitmapPool
 import com.bumptech.glide.load.resource.bitmap.CenterCrop
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
+import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.RequestOptions
+import com.bumptech.glide.request.target.Target
 import com.bumptech.glide.signature.ObjectKey
 import com.instructure.canvasapi2.models.Attachment
 import com.instructure.canvasapi2.models.Course
@@ -68,10 +73,8 @@ import com.instructure.canvasapi2.utils.tryOrNull
 import com.instructure.canvasapi2.utils.weave.WeaveJob
 import com.instructure.canvasapi2.utils.weave.weave
 import com.instructure.pandautils.R
-import de.hdodenhof.circleimageview.CircleImageView
-import kotlinx.android.synthetic.main.abc_search_view.view.*
 import kotlinx.coroutines.delay
-import java.util.Locale
+import java.util.*
 
 /** Convenience extension for setting a click listener */
 @Suppress("NOTHING_TO_INLINE")
@@ -363,10 +366,10 @@ fun View.requestAccessibilityFocus(delay: Long = 500) {
  * OnClickListener for checking internet connection first. If connection exits allow click,
  * otherwise show no internet dialog.
  */
-fun View.onClickWithRequireNetwork(clickListener: (v: View) -> Unit) = onClick {
+fun View.onClickWithRequireNetwork(clickListener: OnClickListener) = onClick {
     if (APIHelper.hasNetworkConnection()) {
         //Allow click
-        clickListener(this)
+        clickListener.onClick(this)
     } else {
         //show dialog
         AlertDialog.Builder(context)
@@ -503,24 +506,6 @@ fun View.setupAvatarA11y(userName: String?) {
 fun View.clearAvatarA11y() {
     contentDescription = ""
     setAccessibilityDelegate(null)
-}
-
-@JvmName("setUserAvatarImage")
-fun CircleImageView.setAvatarImage(context: Context, userName: String?) {
-    val initials = ProfileUtils.getUserInitials(userName)
-    val color = ContextCompat.getColor(context, R.color.textDark)
-    val drawable = TextDrawable.builder()
-            .beginConfig()
-            .height(context.resources.getDimensionPixelSize(com.instructure.pandautils.R.dimen.avatar_size))
-            .width(context.resources.getDimensionPixelSize(com.instructure.pandautils.R.dimen.avatar_size))
-            .toUpperCase()
-            .useFont(Typeface.DEFAULT_BOLD)
-            .textColor(color)
-            .endConfig()
-            .buildRound(initials, Color.WHITE)
-    this.borderColor = color
-    this.borderWidth = context.DP(0.5f).toInt()
-    this.setImageDrawable(drawable)
 }
 
 /**
@@ -664,8 +649,9 @@ fun Toolbar?.addSearch(hintText: String? = null, @ColorInt color: Int = Color.WH
     inflateMenu(R.menu.search)
     val searchItem = menu.findItem(R.id.search)
     with(searchItem.actionView as SearchView) {
+        maxWidth = Int.MAX_VALUE
         setIconifiedByDefault(false)
-        search_mag_icon.setImageDrawable(null)
+        findViewById<ImageView>(R.id.search_mag_icon)?.setImageDrawable(null)
         queryHint = hintText ?: context.getString(R.string.search)
         setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             var lastQuery = "" // Track the last sent query to reduce duplicates
@@ -684,7 +670,7 @@ fun Toolbar?.addSearch(hintText: String? = null, @ColorInt color: Int = Color.WH
                 return true
             }
         })
-        (search_src_text as? EditText)?.apply {
+        findViewById<EditText>(R.id.search_src_text)?.apply {
             setTextColor(color)
             setCursorColor(color)
             setHintTextColor(ColorUtils.setAlphaComponent(color, 0x66))
@@ -771,4 +757,63 @@ fun View.fadeAnimationWithAction(action: () -> Unit) {
     })
 
     startAnimation(fadeOutAnim)
+}
+
+/**
+ * Load model into ImageView as a circle image using Glide
+ *
+ * @param model - Any object supported by Glide (Uri, File, Bitmap, String, resource id as Int, ByteArray, and Drawable)
+ * @param placeholder - Placeholder drawable
+ * @param onFailure - Called when an exception occurs during a load
+ */
+@SuppressLint("CheckResult")
+fun <T> ImageView.loadCircularImage(
+    model: T,
+    placeholder: Int? = null,
+    onFailure: (() -> Unit)? = null
+) {
+    Glide.with(context)
+        .asBitmap()
+        .load(model)
+        .apply { placeholder?.let { placeholder(it) } }
+        .apply(RequestOptions.circleCropTransform())
+        .addListener(object : RequestListener<Bitmap> {
+            override fun onLoadFailed(
+                e: GlideException?,
+                model: Any?,
+                target: Target<Bitmap>?,
+                isFirstResource: Boolean
+            ): Boolean {
+                onFailure?.invoke()
+                return true
+            }
+
+            override fun onResourceReady(
+                resource: Bitmap?,
+                model: Any?,
+                target: Target<Bitmap>?,
+                dataSource: DataSource?,
+                isFirstResource: Boolean
+            ): Boolean {
+                return false
+            }
+        })
+        .into(this)
+}
+
+
+fun Animation.addListener(onStart: (Animation?) -> Unit = {}, onEnd: (Animation?) -> Unit = {}, onRepeat: (Animation?) -> Unit = {}) {
+    this.setAnimationListener(object : Animation.AnimationListener {
+        override fun onAnimationStart(animation: Animation?) {
+            onStart(animation)
+        }
+
+        override fun onAnimationEnd(animation: Animation?) {
+            onEnd(animation)
+        }
+
+        override fun onAnimationRepeat(animation: Animation?) {
+            onRepeat(animation)
+        }
+    })
 }

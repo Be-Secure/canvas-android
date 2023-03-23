@@ -25,6 +25,7 @@ import 'package:flutter_parent/router/router_error_screen.dart';
 import 'package:flutter_parent/screens/account_creation/account_creation_screen.dart';
 import 'package:flutter_parent/screens/announcements/announcement_details_screen.dart';
 import 'package:flutter_parent/screens/assignments/assignment_details_screen.dart';
+import 'package:flutter_parent/screens/aup/acceptable_use_policy_screen.dart';
 import 'package:flutter_parent/screens/calendar/calendar_screen.dart';
 import 'package:flutter_parent/screens/calendar/calendar_widget/calendar_widget.dart';
 import 'package:flutter_parent/screens/courses/details/course_details_screen.dart';
@@ -115,10 +116,11 @@ class PandaRouter {
 
   static String loginWeb(
     String domain, {
+    String accountName = '',
     String authenticationProvider = null,
     LoginFlow loginFlow = LoginFlow.normal,
   }) =>
-      '$_loginWeb?${_RouterKeys.domain}=${Uri.encodeQueryComponent(domain)}&${_RouterKeys.authenticationProvider}=$authenticationProvider&${_RouterKeys.loginFlow}=${loginFlow.toString()}';
+      '$_loginWeb?${_RouterKeys.domain}=${Uri.encodeQueryComponent(domain)}&${_RouterKeys.accountName}=${Uri.encodeQueryComponent(accountName)}&${_RouterKeys.authenticationProvider}=$authenticationProvider&${_RouterKeys.loginFlow}=${loginFlow.toString()}';
 
   static String notParent() => '/not_parent';
 
@@ -146,6 +148,8 @@ class PandaRouter {
   static String _routerErrorRoute(String url) => '/error?${_RouterKeys.url}=${Uri.encodeQueryComponent(url)}';
 
   static String rootSplash() => '/';
+
+  static String aup() => '/aup';
 
   static final String _simpleWebView = '/internal';
 
@@ -204,6 +208,7 @@ class PandaRouter {
       router.define(settings(), handler: _settingsHandler);
       router.define(_simpleWebView, handler: _simpleWebViewHandler);
       router.define(termsOfUse(), handler: _termsOfUseHandler);
+      router.define(aup(), handler: _aupHandler);
 
       // EXTERNAL
       router.define(_rootWithExternalUrl, handler: _rootWithExternalUrlHandler);
@@ -325,6 +330,7 @@ class PandaRouter {
 
     return WebLoginScreen(
       params[_RouterKeys.domain][0],
+      accountName: params[_RouterKeys.accountName][0],
       authenticationProvider: authProvider,
       loginFlow: loginFlow,
     );
@@ -387,6 +393,10 @@ class PandaRouter {
     } else {
       return TermsOfUseScreen();
     }
+  });
+
+  static Handler _aupHandler = Handler(handlerFunc: (BuildContext context, Map<String, List<String>> params) {
+    return AcceptableUsePolicyScreen();
   });
 
   /// Used to handled external urls routed by the intent-filter -> MainActivity.kt
@@ -507,6 +517,7 @@ class _RouterKeys {
   static final calendarView = 'view_name';
   static final courseId = 'courseId';
   static final domain = 'domain';
+  static final accountName = 'accountName';
   static final eventId = 'eventId';
   static final infoText = 'infoText';
   static final isCreatingAccount = 'isCreatingAccount';

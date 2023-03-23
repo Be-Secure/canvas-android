@@ -34,9 +34,9 @@ import com.instructure.panda_annotations.FeatureCategory
 import com.instructure.panda_annotations.Priority
 import com.instructure.panda_annotations.TestCategory
 import com.instructure.panda_annotations.TestMetaData
+import com.instructure.student.R
 import com.instructure.student.ui.utils.StudentTest
 import com.instructure.student.ui.utils.tokenLogin
-import com.instructure.student.R
 import dagger.hilt.android.testing.HiltAndroidTest
 import org.hamcrest.CoreMatchers
 import org.junit.Before
@@ -88,7 +88,7 @@ class NavigationDrawerInteractionTest : StudentTest() {
                 clientSecret = "",
                 calendarFilterPrefs = null
         ))
-        dashboardPage.pressChangeUser()
+        leftSideNavigationDrawerPage.clickChangeUserMenu()
 
         // Sign in student 2
         val token = data.tokenFor(student2)!!
@@ -96,13 +96,13 @@ class NavigationDrawerInteractionTest : StudentTest() {
         dashboardPage.waitForRender()
 
         // Change back to student 1
-        dashboardPage.pressChangeUser()
+        leftSideNavigationDrawerPage.clickChangeUserMenu()
         loginLandingPage.assertDisplaysPreviousLogins()
         loginLandingPage.loginWithPreviousUser(student1)
 
         // Make sure that student 1 is now logged in
         dashboardPage.waitForRender()
-        dashboardPage.assertUserLoggedIn(student1)
+        leftSideNavigationDrawerPage.assertUserLoggedIn(student1)
     }
 
     // Should be able to log out from the navigation drawer
@@ -118,7 +118,7 @@ class NavigationDrawerInteractionTest : StudentTest() {
 
         signInStudent()
 
-        dashboardPage.logOut()
+        leftSideNavigationDrawerPage.logout()
         loginLandingPage.assertPageObjects()
     }
 
@@ -152,7 +152,7 @@ class NavigationDrawerInteractionTest : StudentTest() {
 
         signInStudent()
 
-        dashboardPage.goToHelp()
+        leftSideNavigationDrawerPage.clickHelpMenu()
         helpPage.verifyAskAQuestion(course, "Here's a question")
     }
 
@@ -162,9 +162,9 @@ class NavigationDrawerInteractionTest : StudentTest() {
     fun testHelp_searchCanvasGuides() {
         signInStudent()
 
-        dashboardPage.goToHelp()
+        leftSideNavigationDrawerPage.clickHelpMenu()
         helpPage.launchGuides()
-        canvasWebViewPage.verifyTitle(R.string.searchGuides)
+        canvasWebViewPage.assertTitle(R.string.searchGuides)
     }
 
     // Should send an error report
@@ -175,7 +175,7 @@ class NavigationDrawerInteractionTest : StudentTest() {
 
         signInStudent()
 
-        dashboardPage.goToHelp()
+        leftSideNavigationDrawerPage.clickHelpMenu()
         helpPage.verifyReportAProblem("Problem", "It's a problem!")
     }
 
@@ -191,7 +191,7 @@ class NavigationDrawerInteractionTest : StudentTest() {
     fun testHelp_submitFeatureIdea() {
         signInStudent()
 
-        dashboardPage.goToHelp()
+        leftSideNavigationDrawerPage.clickHelpMenu()
 
         // Figure out which email apps we have installed on the device
         var pkgMgr = activity.packageManager
@@ -242,7 +242,7 @@ class NavigationDrawerInteractionTest : StudentTest() {
     fun testHelp_shareYourLove() {
         signInStudent()
 
-        dashboardPage.goToHelp()
+        leftSideNavigationDrawerPage.clickHelpMenu()
         Intents.init()
         try {
             val expectedIntent = CoreMatchers.allOf(

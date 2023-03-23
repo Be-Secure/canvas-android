@@ -36,7 +36,10 @@ import android.app.Activity
 import android.content.*
 import android.graphics.Bitmap
 import android.net.Uri
-import android.os.*
+import android.os.Handler
+import android.os.Looper
+import android.os.Message
+import android.os.Parcelable
 import android.provider.MediaStore
 import android.text.Html
 import android.util.AttributeSet
@@ -61,7 +64,6 @@ import com.instructure.canvasapi2.utils.FileUtils.getAssetsFile
 import com.instructure.canvasapi2.utils.Logger.e
 import com.instructure.pandautils.R
 import com.instructure.pandautils.utils.*
-import com.instructure.pandautils.utils.FileUploadUtils.getExternalCacheDir
 import com.instructure.pandautils.video.VideoWebChromeClient
 import java.io.File
 import java.io.UnsupportedEncodingException
@@ -482,16 +484,22 @@ class CanvasWebView @JvmOverloads constructor(
      * @param title
      * @return
      */
-    fun loadHtml(html: String, title: String?, backgroundColorRes: Int = R.color.backgroundLightest): String {
-        val result = formatHtml(html, title, backgroundColorRes)
-        loadDataWithBaseURL(getReferrer(true), result, "text/html", encoding, getHtmlAsUrl(result))
+    fun loadHtml(html: String,
+                 title: String?,
+                 baseUrl: String? = null,
+                 htmlFormatColors: HtmlFormatColors = HtmlFormatColors(),
+                 extraFormatting: ((String) -> String)? = null
+    ): String {
+        var result = formatHtml(html, title, htmlFormatColors)
+        if (extraFormatting != null) result = extraFormatting(result)
+        loadDataWithBaseURL(baseUrl ?: getReferrer(true), result, "text/html", encoding, getHtmlAsUrl(result))
         return result
     }
 
     /**
      * Helper function that makes html content somewhat suitable for mobile
      */
-    fun formatHtml(html: String, title: String? = "", @ColorRes backgroundColorRes: Int = R.color.backgroundLightest): String {
+    fun formatHtml(html: String, title: String? = "", htmlFormatColors: HtmlFormatColors = HtmlFormatColors()): String {
         var formatted = applyWorkAroundForDoubleSlashesAsUrlSource(html)
         formatted = addProtocolToLinks(formatted)
         formatted = checkForMathTags(formatted)
@@ -500,10 +508,10 @@ class CanvasWebView @JvmOverloads constructor(
         return htmlWrapper
             .replace("{\$CONTENT$}", formatted)
             .replace("{\$TITLE$}", title ?: "")
-            .replace("{\$BACKGROUND$}", colorResToHexString(backgroundColorRes))
-            .replace("{\$COLOR$}", colorResToHexString(R.color.textDarkest))
-            .replace("{\$LINK_COLOR$}", colorResToHexString(R.color.textInfo))
-            .replace("{\$VISITED_LINK_COLOR\$}", colorResToHexString(R.color.textAlert))
+            .replace("{\$BACKGROUND$}", colorResToHexString(htmlFormatColors.backgroundColorRes))
+            .replace("{\$COLOR$}", colorResToHexString(htmlFormatColors.textColor))
+            .replace("{\$LINK_COLOR$}", colorResToHexString(htmlFormatColors.linkColor))
+            .replace("{\$VISITED_LINK_COLOR\$}", colorResToHexString(htmlFormatColors.visitedLinkColor))
     }
 
     private fun colorResToHexString(@ColorRes colorRes: Int): String {
@@ -609,7 +617,7 @@ class CanvasWebView @JvmOverloads constructor(
         val cameraIntents: MutableList<Intent> = ArrayList()
         if (allowRecording) {
             val fileName = "vid_" + System.currentTimeMillis() + ".mp4"
-            val file = File(getExternalCacheDir(context), fileName)
+            val file = File(FileUploadUtils.getExternalCacheDir(context), fileName)
             val cameraImageUri = FileProvider.getUriForFile(
                 context,
                 context.packageName + Const.FILE_PROVIDER_AUTHORITY,
@@ -787,3 +795,10 @@ class CanvasWebView @JvmOverloads constructor(
         }
     }
 }
+
+data class HtmlFormatColors(
+    @ColorRes val backgroundColorRes: Int = R.color.backgroundLightest,
+    @ColorRes val textColor: Int = R.color.textDarkest,
+    @ColorRes val linkColor: Int = R.color.textInfo,
+    @ColorRes val visitedLinkColor: Int = R.color.textAlert
+)

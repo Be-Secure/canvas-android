@@ -24,23 +24,26 @@ import androidx.core.content.ContextCompat
 import com.instructure.canvasapi2.models.CanvasContext
 import com.instructure.canvasapi2.models.ScheduleItem
 import com.instructure.canvasapi2.utils.ApiPrefs
-import com.instructure.interactions.router.Route
 import com.instructure.pandautils.analytics.SCREEN_VIEW_CALENDAR_EVENT
 import com.instructure.pandautils.analytics.ScreenView
+import com.instructure.pandautils.binding.viewBinding
 import com.instructure.pandautils.fragments.BaseFragment
-import com.instructure.pandautils.utils.*
+import com.instructure.pandautils.utils.NullableParcelableArg
+import com.instructure.pandautils.utils.ViewStyler
+import com.instructure.pandautils.utils.loadHtmlWithIframes
+import com.instructure.pandautils.utils.setupAsBackButton
 import com.instructure.pandautils.views.CanvasWebView
 import com.instructure.teacher.R
 import com.instructure.teacher.activities.InternalWebViewActivity
+import com.instructure.teacher.databinding.FragmentCalendarEventBinding
 import com.instructure.teacher.fragments.LtiLaunchFragment
 import com.instructure.teacher.router.RouteMatcher
-import kotlinx.android.synthetic.main.fragment_calendar_event.*
-import kotlinx.android.synthetic.main.fragment_syllabus.toolbar
 import kotlinx.coroutines.Job
-import java.net.URLDecoder
 
 @ScreenView(SCREEN_VIEW_CALENDAR_EVENT)
 class CalendarEventFragment : BaseFragment() {
+
+    private val binding by viewBinding(FragmentCalendarEventBinding::bind)
 
     private val transformer = CalendarEventStateTransformer()
 
@@ -54,12 +57,12 @@ class CalendarEventFragment : BaseFragment() {
 
     override fun onResume() {
         super.onResume()
-        calendarEventWebView?.onResume()
+        binding.calendarEventWebViewWrapper.webView.onResume()
     }
 
     override fun onPause() {
         super.onPause()
-        calendarEventWebView?.onPause()
+        binding.calendarEventWebViewWrapper.webView.onPause()
     }
 
     override fun onCreateView(view: View) {}
@@ -78,18 +81,18 @@ class CalendarEventFragment : BaseFragment() {
         loadHtmlJob?.cancel()
     }
 
-    private fun applyTheme(viewState: CalendarEventViewState) {
-        toolbar?.title = viewState.eventTitle
+    private fun applyTheme(viewState: CalendarEventViewState) = with(binding) {
+        toolbar.title = viewState.eventTitle
         ViewStyler.themeToolbarColored(context as Activity, toolbar, canvasContext)
         toolbar.setupAsBackButton { (context as? Activity)?.onBackPressed() }
     }
 
     private fun initWebView() {
-        with(calendarEventWebView) {
+        with(binding.calendarEventWebViewWrapper.webView) {
             addVideoClient(requireActivity())
             canvasEmbeddedWebViewCallback = object : CanvasWebView.CanvasEmbeddedWebViewCallback {
                 override fun launchInternalWebViewFragment(url: String) {
-                    activity?.startActivity(InternalWebViewActivity.createIntent(calendarEventWebView.context, url, "", true))
+                    activity?.startActivity(InternalWebViewActivity.createIntent(binding.calendarEventWebViewWrapper.context, url, "", true))
                 }
 
                 override fun shouldLaunchInternalWebViewFragment(url: String): Boolean = true
@@ -112,23 +115,26 @@ class CalendarEventFragment : BaseFragment() {
         }
     }
 
-    private fun setupViews(viewState: CalendarEventViewState) {
+    private fun setupViews(viewState: CalendarEventViewState) = with(binding) {
         dateTitle.text = viewState.dateTitle
         dateSubtitle.text = viewState.dateSubtitle
         locationTitle.text = viewState.locationTitle
         locationSubtitle.text = viewState.locationSubtitle
 
         if (viewState.htmlContent.isNotEmpty()) {
-            loadHtmlJob = calendarEventWebView.loadHtmlWithIframes(requireContext(), isTablet, viewState.htmlContent, ::loadCalendarHtml, { url ->
-                val args = LtiLaunchFragment.makeBundle(canvasContext, URLDecoder.decode(url, "utf-8"), getString(R.string.utils_externalToolTitle), true)
-                RouteMatcher.route(requireContext(), Route(LtiLaunchFragment::class.java, canvasContext, args))
-            }, viewState.eventTitle)
+            loadHtmlJob = calendarEventWebViewWrapper.webView.loadHtmlWithIframes(requireContext(), viewState.htmlContent, {
+                loadCalendarHtml(it, viewState.eventTitle)
+            }) {
+                LtiLaunchFragment.routeLtiLaunchFragment(requireContext(), canvasContext, it)
+            }
         }
     }
 
-    private fun loadCalendarHtml(html: String, contentDescription: String?) {
-        calendarEventWebView?.setBackgroundColor(ContextCompat.getColor(requireContext(), R.color.backgroundLightest))
-        calendarEventWebView?.loadHtml(html, contentDescription)
+    private fun loadCalendarHtml(html: String, contentDescription: String) {
+        binding.calendarEventWebViewWrapper.apply {
+            setBackgroundColor(ContextCompat.getColor(requireContext(), R.color.backgroundLightest))
+            loadHtml(html, contentDescription, baseUrl = scheduleItem?.htmlUrl)
+        }
     }
 
     companion object {

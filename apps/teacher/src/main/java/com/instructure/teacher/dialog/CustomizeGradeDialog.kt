@@ -31,8 +31,8 @@ import com.instructure.pandautils.analytics.SCREEN_VIEW_CUSTOMIZE_GRADE
 import com.instructure.pandautils.analytics.ScreenView
 import com.instructure.pandautils.utils.*
 import com.instructure.teacher.R
-import kotlinx.android.synthetic.main.dialog_customize_grade.view.*
-import java.util.Locale
+import com.instructure.teacher.databinding.DialogCustomizeGradeBinding
+import java.util.*
 import kotlin.properties.Delegates
 
 @ScreenView(SCREEN_VIEW_CUSTOMIZE_GRADE)
@@ -62,10 +62,10 @@ class CustomizeGradeDialog : AppCompatDialogFragment() {
     }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        val view = View.inflate(requireActivity(), R.layout.dialog_customize_grade, null)
-        val gradeEditText = view.gradeEditText
-        val gradeTextHint = view.textHint
-        val excusedCheckBox = view.excuseStudentCheckbox
+        val binding = DialogCustomizeGradeBinding.inflate(layoutInflater)
+        val gradeEditText = binding.gradeEditText
+        val gradeTextHint = binding.textHint
+        val excusedCheckBox = binding.excuseStudentCheckbox
 
         //style views
         ViewStyler.themeEditText(requireContext(), gradeEditText, ThemePrefs.brandColor)
@@ -79,7 +79,7 @@ class CustomizeGradeDialog : AppCompatDialogFragment() {
             gradeEditText.setPaddingRelative(gradeEditText.paddingStart, gradeEditText.paddingTop, right - left, gradeEditText.paddingBottom)
         }
 
-        gradeEditText.setText(grade ?: "", TextView.BufferType.EDITABLE)
+        gradeEditText.setText(grade.orEmpty(), TextView.BufferType.EDITABLE)
         gradeEditText.setSelection(grade?.length ?: 0)
         gradeEditText.hint = ""
 
@@ -106,7 +106,7 @@ class CustomizeGradeDialog : AppCompatDialogFragment() {
         val gradeDialog = AlertDialog.Builder(requireActivity())
                 .setCancelable(true)
                 .setTitle(getString(R.string.customize_grade))
-                .setView(view)
+                .setView(binding.root)
                 .setPositiveButton(getString(android.R.string.ok).uppercase(Locale.getDefault())) { _, _ ->
                     updateGrade(gradeEditText.text.toString(), gradingType, excusedCheckBox.isChecked)
                 }
@@ -116,8 +116,8 @@ class CustomizeGradeDialog : AppCompatDialogFragment() {
         gradeDialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
 
         gradeDialog.setOnShowListener {
-            gradeDialog.getButton(AppCompatDialog.BUTTON_POSITIVE).setTextColor(ThemePrefs.buttonColor)
-            gradeDialog.getButton(AppCompatDialog.BUTTON_NEGATIVE).setTextColor(ThemePrefs.buttonColor)
+            gradeDialog.getButton(AppCompatDialog.BUTTON_POSITIVE).setTextColor(ThemePrefs.textButtonColor)
+            gradeDialog.getButton(AppCompatDialog.BUTTON_NEGATIVE).setTextColor(ThemePrefs.textButtonColor)
         }
 
         // Close and update the grade when the user hits the 'Done' button on the keyboard

@@ -18,27 +18,24 @@ package com.instructure.teacher.activities
 
 import android.content.Context
 import android.content.Intent
-import android.content.res.ColorStateList
-import android.graphics.Color
-import android.graphics.Typeface
+import android.content.res.Configuration
 import android.os.Bundle
-import android.view.LayoutInflater
 import android.view.View
 import android.widget.CompoundButton
-import android.widget.TextView
 import android.widget.Toast
 import androidx.annotation.IdRes
 import androidx.annotation.PluralsRes
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.Toolbar
-import androidx.core.content.ContextCompat
+import androidx.core.view.GravityCompat
 import androidx.core.view.MenuItemCompat
+import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
-import com.bumptech.glide.Glide
-import com.google.android.material.bottomnavigation.BottomNavigationItemView
+import androidx.lifecycle.lifecycleScope
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.instructure.canvasapi2.managers.CourseNicknameManager
+import com.instructure.canvasapi2.managers.ThemeManager
 import com.instructure.canvasapi2.managers.UserManager
 import com.instructure.canvasapi2.models.*
 import com.instructure.canvasapi2.utils.*
@@ -53,18 +50,22 @@ import com.instructure.loginapi.login.dialog.ErrorReportDialog
 import com.instructure.loginapi.login.dialog.MasqueradingDialog
 import com.instructure.loginapi.login.tasks.LogoutTask
 import com.instructure.pandautils.activities.BasePresenterActivity
+import com.instructure.pandautils.binding.viewBinding
 import com.instructure.pandautils.dialogs.RatingDialog
 import com.instructure.pandautils.features.help.HelpDialogFragment
+import com.instructure.pandautils.features.inbox.list.InboxFragment
+import com.instructure.pandautils.features.inbox.list.OnUnreadCountInvalidated
 import com.instructure.pandautils.features.themeselector.ThemeSelectorBottomSheet
+import com.instructure.pandautils.interfaces.NavigationCallbacks
 import com.instructure.pandautils.models.PushNotification
 import com.instructure.pandautils.receivers.PushExternalReceiver
 import com.instructure.pandautils.typeface.TypefaceBehavior
 import com.instructure.pandautils.update.UpdateManager
 import com.instructure.pandautils.utils.*
-import com.instructure.pandautils.utils.Const
-import com.instructure.pandautils.utils.toast
 import com.instructure.teacher.BuildConfig
 import com.instructure.teacher.R
+import com.instructure.teacher.databinding.ActivityInitBinding
+import com.instructure.teacher.databinding.NavigationDrawerBinding
 import com.instructure.teacher.dialog.ColorPickerDialog
 import com.instructure.teacher.dialog.EditCourseNicknameDialog
 import com.instructure.teacher.events.CourseUpdatedEvent
@@ -75,24 +76,26 @@ import com.instructure.teacher.presenters.InitActivityPresenter
 import com.instructure.teacher.router.RouteMatcher
 import com.instructure.teacher.router.RouteResolver
 import com.instructure.teacher.tasks.TeacherLogoutTask
-import com.instructure.teacher.utils.*
-import com.instructure.teacher.utils.AppType
+import com.instructure.teacher.utils.LoggingUtility
+import com.instructure.teacher.utils.TeacherPrefs
+import com.instructure.teacher.utils.isTablet
 import com.instructure.teacher.viewinterface.InitActivityView
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.android.synthetic.main.activity_init.*
-import kotlinx.android.synthetic.main.navigation_drawer.*
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
-import java.util.Locale
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class InitActivity : BasePresenterActivity<InitActivityPresenter, InitActivityView>(), InitActivityView,
-    CoursesFragment.CourseListCallback, AllCoursesFragment.CourseBrowserCallback, InitActivityInteractions,
-    MasqueradingDialog.OnMasqueradingSet, ErrorReportDialog.ErrorReportDialogResultListener {
+class InitActivity : BasePresenterActivity<InitActivityPresenter, InitActivityView>(),
+    InitActivityView, DashboardFragment.CourseBrowserCallback, InitActivityInteractions,
+    MasqueradingDialog.OnMasqueradingSet, ErrorReportDialog.ErrorReportDialogResultListener, OnUnreadCountInvalidated {
+
+    private val binding by viewBinding(ActivityInitBinding::inflate)
+    private lateinit var navigationDrawerBinding: NavigationDrawerBinding
 
     @Inject
     lateinit var updateManager: UpdateManager
@@ -127,7 +130,7 @@ class InitActivity : BasePresenterActivity<InitActivityPresenter, InitActivityVi
     private lateinit var checkListener: CompoundButton.OnCheckedChangeListener
 
     private val isDrawerOpen: Boolean
-        get() = !(drawerLayout == null || navigationDrawer == null) && drawerLayout.isDrawerOpen(navigationDrawer)
+        get() = binding.drawerLayout.isDrawerOpen(GravityCompat.START)
 
     override fun onStart() {
         super.onStart()
@@ -142,6 +145,15 @@ class InitActivity : BasePresenterActivity<InitActivityPresenter, InitActivityVi
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val nightModeFlags: Int = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        ColorKeeper.darkTheme = nightModeFlags == Configuration.UI_MODE_NIGHT_YES
+
+        if (!ThemePrefs.isThemeApplied) {
+            // This will be only called when we change dark/light mode, because the Theme is already applied before in the SplashActivity.
+            updateTheme()
+        }
+
         typefaceBehaviour.overrideFont(FontFamily.REGULAR.fontPath)
         LoggingUtility.log(this.javaClass.simpleName + " --> On Create")
 
@@ -151,7 +163,9 @@ class InitActivity : BasePresenterActivity<InitActivityPresenter, InitActivityVi
             finish()
         }
 
-        setContentView(R.layout.activity_init)
+        navigationDrawerBinding = NavigationDrawerBinding.bind(binding.root)
+        setContentView(binding.root)
+
         selectedTab = savedInstanceState?.getInt(SELECTED_TAB) ?: 0
 
         if (savedInstanceState == null) {
@@ -160,7 +174,7 @@ class InitActivity : BasePresenterActivity<InitActivityPresenter, InitActivityVi
             }
         }
 
-        RatingDialog.showRatingDialog(this, com.instructure.pandautils.utils.AppType.TEACHER)
+        RatingDialog.showRatingDialog(this, AppType.TEACHER)
 
         updateManager.checkForInAppUpdate(this)
 
@@ -168,6 +182,14 @@ class InitActivity : BasePresenterActivity<InitActivityPresenter, InitActivityVi
             val themeSelector = ThemeSelectorBottomSheet()
             themeSelector.show(supportFragmentManager, ThemeSelectorBottomSheet::javaClass.name)
             ThemePrefs.themeSelectionShown = true
+        }
+    }
+
+    private fun updateTheme() {
+        lifecycleScope.launch {
+            val theme = awaitApi<CanvasTheme> { ThemeManager.getTheme(it, false) }
+            ThemePrefs.applyCanvasTheme(theme, this@InitActivity)
+            binding.bottomBar.applyTheme(ThemePrefs.brandColor, getColor(R.color.textDarkest))
         }
     }
 
@@ -186,7 +208,7 @@ class InitActivity : BasePresenterActivity<InitActivityPresenter, InitActivityVi
         drawerItemSelectedJob?.cancel()
     }
 
-    override fun onReadySetGo(presenter: InitActivityPresenter) {
+    override fun onReadySetGo(presenter: InitActivityPresenter) = with(binding) {
         bottomBar.applyTheme(ThemePrefs.brandColor, getColor(R.color.textDarkest))
         bottomBar.setOnNavigationItemSelectedListener(mTabSelectedListener)
         fakeToolbar.setBackgroundColor(ThemePrefs.primaryColor)
@@ -222,11 +244,11 @@ class InitActivity : BasePresenterActivity<InitActivityPresenter, InitActivityVi
     }
 
     private fun closeNavigationDrawer() {
-        drawerLayout?.closeDrawer(navigationDrawer)
+        binding.drawerLayout.closeDrawer(GravityCompat.START)
     }
 
     private fun openNavigationDrawer() {
-        drawerLayout?.openDrawer(navigationDrawer)
+        binding.drawerLayout.openDrawer(GravityCompat.START)
     }
 
     private val navDrawerOnClick = View.OnClickListener { v ->
@@ -271,17 +293,17 @@ class InitActivity : BasePresenterActivity<InitActivityPresenter, InitActivityVi
         }
     }
 
-    fun attachNavigationDrawer(toolbar: Toolbar) {
+    fun attachNavigationDrawer(toolbar: Toolbar) = with(navigationDrawerBinding) {
         // Navigation items
-        navigationDrawerItem_files.setOnClickListener(navDrawerOnClick)
-        navigationDrawerItem_gauge.setOnClickListener(navDrawerOnClick)
-        navigationDrawerItem_arc.setOnClickListener(navDrawerOnClick)
-        navigationDrawerItem_changeUser.setOnClickListener(navDrawerOnClick)
-        navigationDrawerItem_logout.setOnClickListener(navDrawerOnClick)
+        navigationDrawerItemFiles.setOnClickListener(navDrawerOnClick)
+        navigationDrawerItemGauge.setOnClickListener(navDrawerOnClick)
+        navigationDrawerItemArc.setOnClickListener(navDrawerOnClick)
+        navigationDrawerItemChangeUser.setOnClickListener(navDrawerOnClick)
+        navigationDrawerItemLogout.setOnClickListener(navDrawerOnClick)
         navigationDrawerSettings.setOnClickListener(navDrawerOnClick)
-        navigationDrawerItem_help.setOnClickListener(navDrawerOnClick)
-        navigationDrawerItem_stopMasquerading.setOnClickListener(navDrawerOnClick)
-        navigationDrawerItem_startMasquerading.setOnClickListener(navDrawerOnClick)
+        navigationDrawerItemHelp.setOnClickListener(navDrawerOnClick)
+        navigationDrawerItemStopMasquerading.setOnClickListener(navDrawerOnClick)
+        navigationDrawerItemStartMasquerading.setOnClickListener(navDrawerOnClick)
 
         // Set up Color Overlay setting
         setUpColorOverlaySwitch()
@@ -295,21 +317,21 @@ class InitActivity : BasePresenterActivity<InitActivityPresenter, InitActivityVi
 
         setupUserDetails(ApiPrefs.user)
 
-        navigationDrawerItem_startMasquerading.setVisible(!ApiPrefs.isMasquerading && ApiPrefs.canBecomeUser == true)
-        navigationDrawerItem_stopMasquerading.setVisible(ApiPrefs.isMasquerading)
+        navigationDrawerItemStartMasquerading.setVisible(!ApiPrefs.isMasquerading && ApiPrefs.canBecomeUser == true)
+        navigationDrawerItemStopMasquerading.setVisible(ApiPrefs.isMasquerading)
     }
 
-    private fun setUpColorOverlaySwitch() {
+    private fun setUpColorOverlaySwitch() = with(navigationDrawerBinding) {
         navigationDrawerColorOverlaySwitch.isChecked = !TeacherPrefs.hideCourseColorOverlay
         checkListener = CompoundButton.OnCheckedChangeListener { _, isChecked ->
             navigationDrawerColorOverlaySwitch.isEnabled = false
             presenter?.setHideColorOverlay(!isChecked)
         }
         navigationDrawerColorOverlaySwitch.setOnCheckedChangeListener(checkListener)
-        ViewStyler.themeSwitch(this, navigationDrawerColorOverlaySwitch, ThemePrefs.brandColor)
+        ViewStyler.themeSwitch(this@InitActivity, navigationDrawerColorOverlaySwitch, ThemePrefs.brandColor)
     }
 
-    override fun updateColorOverlaySwitch(isChecked: Boolean, isFailed: Boolean) {
+    override fun updateColorOverlaySwitch(isChecked: Boolean, isFailed: Boolean) = with(navigationDrawerBinding) {
         if (isFailed) toast(R.string.errorOccurred)
         navigationDrawerColorOverlaySwitch.setOnCheckedChangeListener(null)
         navigationDrawerColorOverlaySwitch.isChecked = isChecked
@@ -317,15 +339,15 @@ class InitActivity : BasePresenterActivity<InitActivityPresenter, InitActivityVi
         navigationDrawerColorOverlaySwitch.isEnabled = true
     }
 
-    override fun gotLaunchDefinitions(launchDefinitions: List<LaunchDefinition>?) {
+    override fun gotLaunchDefinitions(launchDefinitions: List<LaunchDefinition>?) = with(navigationDrawerBinding) {
         val arcLaunchDefinition = launchDefinitions?.firstOrNull { it.domain == LaunchDefinition._STUDIO_DOMAIN }
         val gaugeLaunchDefinition = launchDefinitions?.firstOrNull { it.domain == LaunchDefinition._GAUGE_DOMAIN }
 
-        navigationDrawerItem_arc.setVisible(arcLaunchDefinition != null)
-        navigationDrawerItem_arc.tag = arcLaunchDefinition
+        navigationDrawerItemArc.setVisible(arcLaunchDefinition != null)
+        navigationDrawerItemArc.tag = arcLaunchDefinition
 
-        navigationDrawerItem_gauge.setVisible(gaugeLaunchDefinition != null)
-        navigationDrawerItem_gauge.tag = gaugeLaunchDefinition
+        navigationDrawerItemGauge.setVisible(gaugeLaunchDefinition != null)
+        navigationDrawerItemGauge.tag = gaugeLaunchDefinition
     }
 
     override fun onStartMasquerading(domain: String, userId: Long) {
@@ -336,34 +358,18 @@ class InitActivity : BasePresenterActivity<InitActivityPresenter, InitActivityVi
         MasqueradeHelper.stopMasquerading(LoginActivity::class.java)
     }
 
-    private fun setupUserDetails(user: User?) {
+    private fun setupUserDetails(user: User?) = with(navigationDrawerBinding) {
         if (user != null) {
             navigationDrawerUserName.text = Pronouns.span(user.shortName, user.pronouns)
             navigationDrawerUserEmail.text = user.primaryEmail
-
-            if (ProfileUtils.shouldLoadAltAvatarImage(user.avatarUrl)) {
-                val initials = ProfileUtils.getUserInitials(user.shortName ?: "")
-                val color = getColorCompat(R.color.textDark)
-                val drawable = TextDrawable.builder()
-                    .beginConfig()
-                    .height(resources.getDimensionPixelSize(R.dimen.profileAvatarSize))
-                    .width(resources.getDimensionPixelSize(R.dimen.profileAvatarSize))
-                    .toUpperCase()
-                    .useFont(Typeface.DEFAULT_BOLD)
-                    .textColor(color)
-                    .endConfig()
-                    .buildRound(initials, Color.WHITE)
-                navigationDrawerProfileImage.setImageDrawable(drawable)
-            } else {
-                Glide.with(this).load(user.avatarUrl).into(navigationDrawerProfileImage)
-            }
+            ProfileUtils.loadAvatarForUser(navigationDrawerProfileImage, user.shortName, user.avatarUrl)
         }
     }
 
     private fun updateBottomBarContentDescriptions(selectedItemId: Int = -1) {
         // Manually apply content description on each MenuItem since BottomNavigationView won't
         // automatically set it from either the title or content description specified in the menu xml
-        bottomBar.menu.items.forEach {
+        binding.bottomBar.menu.items.forEach {
             val title = if (it.itemId == selectedItemId) getString(R.string.selected) + " " + it.title else it.title
             MenuItemCompat.setContentDescription(it, title)
         }
@@ -378,7 +384,11 @@ class InitActivity : BasePresenterActivity<InitActivityPresenter, InitActivityVi
         updateBottomBarBadge(R.id.tab_inbox, unreadCount, R.plurals.a11y_inboxUnreadCount)
     }
 
-    private fun updateBottomBarBadge(@IdRes menuItemId: Int, count: Int, @PluralsRes quantityContentDescription: Int? = null) {
+    override fun invalidateUnreadCount() {
+        presenter?.updateUnreadCount()
+    }
+
+    private fun updateBottomBarBadge(@IdRes menuItemId: Int, count: Int, @PluralsRes quantityContentDescription: Int? = null) = with(binding) {
         if (count > 0) {
             bottomBar.getOrCreateBadge(menuItemId).number = count
             bottomBar.getOrCreateBadge(menuItemId).backgroundColor = getColor(R.color.backgroundInfo)
@@ -393,22 +403,22 @@ class InitActivity : BasePresenterActivity<InitActivityPresenter, InitActivityVi
     }
 
     private fun addCoursesFragment() {
-        if (supportFragmentManager.findFragmentByTag(CoursesFragment::class.java.simpleName) == null) {
-            setBaseFragment(CoursesFragment.getInstance())
+        if (supportFragmentManager.findFragmentByTag(DashboardFragment::class.java.simpleName) == null) {
+            setBaseFragment(DashboardFragment.getInstance())
         } else if (resources.getBoolean(R.bool.isDeviceTablet)) {
-            container.visibility = View.VISIBLE
-            masterDetailContainer.visibility = View.GONE
+            binding.container.visibility = View.VISIBLE
+            binding.masterDetailContainer.visibility = View.GONE
         }
     }
 
-    private fun addInboxFragment() {
+    private fun addInboxFragment() = with(binding) {
         if (supportFragmentManager.findFragmentByTag(InboxFragment::class.java.simpleName) == null) {
             // if we're a tablet we want the master detail view
             if (resources.getBoolean(R.bool.isDeviceTablet)) {
-                val route = Route(InboxFragment::class.java, null)
+                val route = InboxFragment.makeRoute()
                 val masterFragment = RouteResolver.getMasterFragment(null, route)
                 val detailFragment =
-                    EmptyFragment.newInstance(RouteMatcher.getClassDisplayName(this, route.primaryClass))
+                    EmptyFragment.newInstance(RouteMatcher.getClassDisplayName(this@InitActivity, route.primaryClass))
                 putFragments(masterFragment, detailFragment, true)
                 middleTopDivider.setBackgroundColor(ThemePrefs.primaryColor)
 
@@ -454,8 +464,8 @@ class InitActivity : BasePresenterActivity<InitActivityPresenter, InitActivityVi
         if (supportFragmentManager.findFragmentByTag(ToDoFragment::class.java.simpleName) == null) {
             setBaseFragment(ToDoFragment())
         } else if (resources.getBoolean(R.bool.isDeviceTablet)) {
-            container.visibility = View.VISIBLE
-            masterDetailContainer.visibility = View.GONE
+            binding.container.visibility = View.VISIBLE
+            binding.masterDetailContainer.visibility = View.GONE
         }
     }
 
@@ -470,8 +480,8 @@ class InitActivity : BasePresenterActivity<InitActivityPresenter, InitActivityVi
     private fun putFragment(fragment: Fragment, clearBackStack: Boolean) {
         if (isDrawerOpen) closeNavigationDrawer()
 
-        masterDetailContainer.setGone()
-        container.visibility = View.VISIBLE
+        binding.masterDetailContainer.setGone()
+        binding.container.visibility = View.VISIBLE
 
         val fm = supportFragmentManager
         val ft = fm.beginTransaction()
@@ -491,8 +501,8 @@ class InitActivity : BasePresenterActivity<InitActivityPresenter, InitActivityVi
 
         if (isDrawerOpen) closeNavigationDrawer()
 
-        masterDetailContainer.visibility = View.VISIBLE
-        container.setGone()
+        binding.masterDetailContainer.visibility = View.VISIBLE
+        binding.container.setGone()
         val fm = supportFragmentManager
         val ft = fm.beginTransaction()
         if (clearBackStack && fm.backStackEntryCount > 0) {
@@ -503,15 +513,6 @@ class InitActivity : BasePresenterActivity<InitActivityPresenter, InitActivityVi
         ft.replace(R.id.master, fragment, fragment::class.java.simpleName)
         ft.replace(R.id.detail, detailFragment, detailFragment.javaClass.simpleName)
         ft.commit()
-    }
-
-    override fun onShowAllCoursesList() {
-        addFragment(AllCoursesFragment.getInstance())
-    }
-
-    override fun onShowEditFavoritesList() {
-        val args = EditFavoritesFragment.makeBundle(AppType.TEACHER)
-        RouteMatcher.route(this, Route(EditFavoritesFragment::class.java, null, args))
     }
 
     override fun onEditCourseNickname(course: Course) {
@@ -558,6 +559,10 @@ class InitActivity : BasePresenterActivity<InitActivityPresenter, InitActivityVi
         if (isDrawerOpen) {
             closeNavigationDrawer()
         } else {
+            if (binding.masterDetailContainer.isVisible) {
+                if ((supportFragmentManager.findFragmentById(R.id.master) as? NavigationCallbacks)?.onHandleBackPressed() == true) return
+                super.onBackPressed()
+            }
             super.onBackPressed()
         }
     }

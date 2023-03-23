@@ -16,32 +16,30 @@
 */
 package com.instructure.teacher.fragments
 
-import android.graphics.Color
-import android.graphics.Typeface
 import android.os.Bundle
-import android.util.TypedValue
 import android.view.MenuItem
 import android.view.View
-import com.bumptech.glide.Glide
 import com.instructure.canvasapi2.utils.APIHelper
 import com.instructure.canvasapi2.utils.ApiPrefs
 import com.instructure.canvasapi2.utils.Pronouns
 import com.instructure.interactions.router.Route
 import com.instructure.pandautils.analytics.SCREEN_VIEW_PROFILE
 import com.instructure.pandautils.analytics.ScreenView
+import com.instructure.pandautils.binding.viewBinding
 import com.instructure.pandautils.fragments.BaseFragment
 import com.instructure.pandautils.utils.*
 import com.instructure.teacher.R
+import com.instructure.teacher.databinding.FragmentProfileBinding
 import com.instructure.teacher.dialog.NoInternetConnectionDialog
 import com.instructure.teacher.router.RouteMatcher
 import com.instructure.teacher.utils.adoptToolbarStyle
-import com.instructure.teacher.utils.getColorCompat
 import com.instructure.teacher.utils.setupBackButtonAsBackPressedOnly
 import com.instructure.teacher.utils.setupMenu
-import kotlinx.android.synthetic.main.fragment_profile.*
 
 @ScreenView(SCREEN_VIEW_PROFILE)
 class ProfileFragment : BaseFragment() {
+
+    private val binding by viewBinding(FragmentProfileBinding::bind)
 
     override fun layoutResId() = R.layout.fragment_profile
 
@@ -49,7 +47,7 @@ class ProfileFragment : BaseFragment() {
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         super.onActivityCreated(savedInstanceState)
-        profileBanner.setImageResource(
+        binding.profileBanner.setImageResource(
                 if(isTablet) R.drawable.teacher_profile_banner_image_tablet
                 else R.drawable.teacher_profile_banner_image_phone)
     }
@@ -60,36 +58,17 @@ class ProfileFragment : BaseFragment() {
         setupViewableData()
     }
 
-    private fun setupToolbar() {
+    private fun setupToolbar() = with(binding) {
         toolbar.setupMenu(R.menu.menu_settings_edit, menuItemCallback)
-        toolbar.setupBackButtonAsBackPressedOnly(this)
+        if (!isTablet) toolbar.setupBackButtonAsBackPressedOnly(this@ProfileFragment)
         titleTextView.adoptToolbarStyle(toolbar)
         ViewStyler.themeToolbarColored(requireActivity(), toolbar, ThemePrefs.primaryColor, ThemePrefs.primaryTextColor)
         toolbar.requestAccessibilityFocus()
     }
 
-    private fun setupViewableData() {
+    private fun setupViewableData() = with(binding) {
         val user = ApiPrefs.user
-
-        if(ProfileUtils.shouldLoadAltAvatarImage(user?.avatarUrl)) {
-            val initials = ProfileUtils.getUserInitials(user?.shortName ?: "")
-            val color = requireContext().getColorCompat(R.color.backgroundDark)
-            val drawable = TextDrawable.builder()
-                    .beginConfig()
-                    .height(requireContext().resources.getDimensionPixelSize(R.dimen.profileAvatarSize))
-                    .width(requireContext().resources.getDimensionPixelSize(R.dimen.profileAvatarSize))
-                    .toUpperCase()
-                    .useFont(Typeface.DEFAULT_BOLD)
-                    .textColor(color)
-                    .endConfig()
-                    .buildRound(initials, Color.WHITE)
-            usersAvatar.borderColor = requireContext().getColorCompat(R.color.borderDark)
-            usersAvatar.borderWidth = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 6F, requireContext().resources.displayMetrics).toInt()
-            usersAvatar.setImageDrawable(drawable)
-        } else {
-            Glide.with(requireContext()).load(user?.avatarUrl).into(usersAvatar)
-        }
-
+        ProfileUtils.loadAvatarForUser(usersAvatar, user?.shortName, user?.avatarUrl, 0)
         usersName.text = Pronouns.span(user?.shortName, user?.pronouns)
         usersEmail.text = user?.primaryEmail
         usersBio.text = user?.bio

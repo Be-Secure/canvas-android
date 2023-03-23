@@ -18,12 +18,13 @@ package com.instructure.teacher.activities
 
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import com.google.firebase.crashlytics.FirebaseCrashlytics
+import com.heapanalytics.android.Heap
 import com.instructure.canvasapi2.managers.CourseManager
+import com.instructure.canvasapi2.managers.FeaturesManager
 import com.instructure.canvasapi2.managers.ThemeManager
 import com.instructure.canvasapi2.managers.UserManager
 import com.instructure.canvasapi2.models.*
@@ -34,13 +35,14 @@ import com.instructure.canvasapi2.utils.weave.StatusCallbackError
 import com.instructure.canvasapi2.utils.weave.awaitApi
 import com.instructure.canvasapi2.utils.weave.awaitOrThrow
 import com.instructure.canvasapi2.utils.weave.weave
+import com.instructure.pandautils.binding.viewBinding
 import com.instructure.pandautils.utils.*
 import com.instructure.teacher.BuildConfig
 import com.instructure.teacher.R
+import com.instructure.teacher.databinding.ActivitySplashBinding
 import com.instructure.teacher.fragments.NotATeacherFragment
 import com.instructure.teacher.utils.LoggingUtility
 import com.instructure.teacher.utils.TeacherPrefs
-import kotlinx.android.synthetic.main.activity_splash.*
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
@@ -48,6 +50,8 @@ import kotlinx.coroutines.async
 
 @Suppress("EXPERIMENTAL_FEATURE_WARNING")
 class SplashActivity : AppCompatActivity() {
+
+    private val binding by viewBinding(ActivitySplashBinding::inflate)
 
     private var startUp: Job? = null
 
@@ -64,7 +68,7 @@ class SplashActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.setBackgroundDrawable(ColorDrawable(getColor(R.color.backgroundLightest)))
-        setContentView(R.layout.activity_splash)
+        setContentView(binding.root)
         LoggingUtility.log(this.javaClass.simpleName + " --> On Create")
         val masqueradingUserId: Long = intent.getLongExtra(Const.QR_CODE_MASQUERADE_ID, 0L)
 
@@ -79,6 +83,8 @@ class SplashActivity : AppCompatActivity() {
                         LocaleUtils.restartApp(this@SplashActivity, LoginActivity::class.java)
                         return@weave
                     }
+
+                    setupHeapTracking()
 
                     // Determine if user is a Teacher, Ta, or Designer
                     // Use GlobalScope since this can continue executing after SplashActivity is destroyed
@@ -139,7 +145,7 @@ class SplashActivity : AppCompatActivity() {
 
                     if (!TeacherPrefs.isConfirmedTeacher && ApiPrefs.canBecomeUser != true && masqueradingUserId == 0L) {
                         // The user is not a teacher in any course and cannot masquerade; Show them the door
-                        canvasLoadingView.setGone()
+                        binding.canvasLoadingView.setGone()
                         supportFragmentManager.beginTransaction()
                             .add(
                                 R.id.splashActivityRootView,
@@ -161,20 +167,20 @@ class SplashActivity : AppCompatActivity() {
                         try {
                             val canvasColor = awaitApi<CanvasColor> { UserManager.getColors(it, true) }
                             ColorKeeper.addToCache(canvasColor)
-                            ColorKeeper.hasPreviouslySynced = true
+                            ColorKeeper.previouslySynced = true
                         } catch (e: Throwable) {
                             LoggingUtility.log("${SplashActivity::class.java.simpleName} - Failed to load colorFetch")
                             Logger.e(e.message)
                         }
                     }
-                    if (!ColorKeeper.hasPreviouslySynced) colorFetch.await() else colorFetch.start()
+                    if (!ColorKeeper.previouslySynced) colorFetch.await() else colorFetch.start()
 
                     // Grab theme
                     // Use GlobalScope since this can continue executing after SplashActivity is destroyed
                     val themeFetch = GlobalScope.async(start = CoroutineStart.LAZY) {
                         try {
                             val theme = awaitApi<CanvasTheme> { ThemeManager.getTheme(it, true) }
-                            ThemePrefs.applyCanvasTheme(theme)
+                            ThemePrefs.applyCanvasTheme(theme, this@SplashActivity)
                         } catch (e: Throwable) {
                             LoggingUtility.log("${SplashActivity::class.java.simpleName} - Failed to load themeFetch")
                             Logger.e(e.message)
@@ -185,18 +191,12 @@ class SplashActivity : AppCompatActivity() {
                     Logger.e(e.message)
                 }
 
-                // Set logged user details
+                // We don't know how the crashlytics stores the userId so we just set it to empty to make sure we don't log it.
                 val crashlytics = FirebaseCrashlytics.getInstance();
-                if (Logger.canLogUserDetails()) {
-                    Logger.d("User detail logging allowed. Setting values.")
-                    crashlytics.setUserId("UserID: ${ApiPrefs.user?.id.toString()} User Domain: ${ApiPrefs.domain}")
-                } else {
-                    Logger.d("User detail logging disallowed. Clearing values.")
-                    crashlytics.setUserId("")
-                }
+                crashlytics.setUserId("")
 
                 startActivity(InitActivity.createIntent(this@SplashActivity, intent?.extras))
-                canvasLoadingView.announceForAccessibility(getString(R.string.loading))
+                binding.canvasLoadingView.announceForAccessibility(getString(R.string.loading))
                 finish()
             }
         } catch (e: Throwable) {
@@ -209,6 +209,12 @@ class SplashActivity : AppCompatActivity() {
         val oldLocale = ApiPrefs.effectiveLocale
         ApiPrefs.user = user
         return ApiPrefs.effectiveLocale != oldLocale
+    }
+
+    private suspend fun setupHeapTracking() {
+        val featureFlagsResult = FeaturesManager.getEnvironmentFeatureFlagsAsync(true).await().dataOrNull
+        val sendUsageMetrics = featureFlagsResult?.get(FeaturesManager.SEND_USAGE_METRICS) ?: false
+        Heap.setTrackingEnabled(sendUsageMetrics)
     }
 
     override fun onStop() {

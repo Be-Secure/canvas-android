@@ -16,35 +16,36 @@
 package com.instructure.pandautils.views
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import androidx.core.content.ContextCompat
+import android.graphics.PorterDuff
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
+import androidx.core.content.ContextCompat
+import com.bumptech.glide.Glide
+import com.bumptech.glide.request.RequestOptions
 import com.instructure.canvasapi2.models.Attachment
 import com.instructure.canvasapi2.models.RemoteFile
 import com.instructure.pandautils.R
+import com.instructure.pandautils.databinding.ViewAttachmentBinding
 import com.instructure.pandautils.utils.onClick
-import com.squareup.picasso.Picasso
-import com.squareup.picasso.Transformation
-import kotlinx.android.synthetic.main.view_attachment.view.*
 import java.io.File
 
 class AttachmentView(context: Context) : FrameLayout(context) {
 
     enum class AttachmentAction { PREVIEW, DOWNLOAD, REMOVE }
 
+    private val binding: ViewAttachmentBinding
+
     init {
-        LayoutInflater.from(getContext()).inflate(R.layout.view_attachment, this, true)
+        binding = ViewAttachmentBinding.inflate(LayoutInflater.from(context), this, true)
     }
 
     fun setPendingRemoteFile(
             attachment: RemoteFile,
             removeViewOnAction: Boolean,
             callback: (action: AttachmentAction, attachment: RemoteFile) -> Unit
-    ) {
+    ) = with(binding) {
         attachmentName.text = attachment.displayName
         setColorAndIcon(context, attachment.contentType, attachment.fileName, previewImage, attachmentIcon)
         setThumbnail(attachment.thumbnailUrl)
@@ -60,7 +61,7 @@ class AttachmentView(context: Context) : FrameLayout(context) {
             attachment: Attachment,
             removeViewOnAction: Boolean,
             callback: (action: AttachmentAction, attachment: Attachment) -> Unit
-    ) {
+    ) = with(binding) {
         attachmentName.text = attachment.displayName
         setColorAndIcon(context, attachment.contentType, attachment.filename, previewImage, attachmentIcon)
         setThumbnail(attachment.thumbnailUrl)
@@ -72,7 +73,7 @@ class AttachmentView(context: Context) : FrameLayout(context) {
         }
     }
 
-    fun setAttachment(attachment: Attachment, callback: (action: AttachmentAction, attachment: Attachment) -> Unit) {
+    fun setAttachment(attachment: Attachment, callback: (action: AttachmentAction, attachment: Attachment) -> Unit) = with(binding) {
         attachmentName.text = attachment.displayName
         setColorAndIcon(context, attachment.contentType, attachment.filename, previewImage, attachmentIcon)
         setThumbnail(attachment.thumbnailUrl)
@@ -81,7 +82,7 @@ class AttachmentView(context: Context) : FrameLayout(context) {
         actionButton.setOnClickListener { callback(AttachmentAction.DOWNLOAD, attachment) }
     }
 
-    fun setAttachment(attachment: RemoteFile, callback: (action: AttachmentAction, attachment: RemoteFile) -> Unit) {
+    fun setAttachment(attachment: RemoteFile, callback: (action: AttachmentAction, attachment: RemoteFile) -> Unit) = with(binding) {
         attachmentName.text = attachment.displayName
         setColorAndIcon(context, attachment.contentType, attachment.fileName, previewImage, attachmentIcon)
         setThumbnail(attachment.thumbnailUrl)
@@ -90,30 +91,20 @@ class AttachmentView(context: Context) : FrameLayout(context) {
         actionButton.setOnClickListener { callback(AttachmentAction.DOWNLOAD, attachment) }
     }
 
-    private fun setThumbnail(path: String?) {
+    private fun setThumbnail(path: String?) = with(binding) {
         if (path.isNullOrBlank()) return
         val file = File(path)
-        val picasso = Picasso.with(context)
-        val creator = if (file.exists() && file.isFile) picasso.load(file) else picasso.load(path)
-        creator.fit().centerCrop().transform(ATTACHMENT_PREVIEW_TRANSFORMER).into(previewImage)
+        Glide.with(context)
+            .load(if (file.exists() && file.isFile) file else path)
+            .apply(RequestOptions.centerCropTransform())
+            .into(previewImage)
+        previewImage.setColorFilter(
+            0xBB9B9B9B.toInt(),
+            PorterDuff.Mode.SRC_OVER
+        )
     }
 
     companion object {
-        /** Picasso transformation to apply gray overlay on thumbnail */
-        @JvmField
-        val ATTACHMENT_PREVIEW_TRANSFORMER: Transformation = object : Transformation {
-            override fun transform(source: Bitmap?): Bitmap? {
-                if (source == null) return null
-                val mutableSource = source.copy(source.config, true)
-                source.recycle()
-                val canvas = Canvas(mutableSource)
-                canvas.drawColor(0xBB9B9B9B.toInt())
-                return mutableSource
-            }
-
-            override fun key(): String = "gray-overlay"
-        }
-
         fun setColorAndIcon(
                 context: Context,
                 contentType: String?,

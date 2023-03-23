@@ -16,14 +16,15 @@
  */
 package com.instructure.teacher.fragments
 
-import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
 import android.view.View
 import android.view.animation.Animation
 import android.view.animation.AnimationUtils
 import androidx.fragment.app.FragmentManager
+import androidx.lifecycle.LiveData
 import androidx.recyclerview.widget.RecyclerView
+import androidx.work.WorkInfo
 import com.instructure.canvasapi2.models.CanvasContext
 import com.instructure.canvasapi2.models.Course
 import com.instructure.canvasapi2.models.FileFolder
@@ -32,16 +33,17 @@ import com.instructure.canvasapi2.utils.isValid
 import com.instructure.interactions.router.Route
 import com.instructure.pandautils.analytics.SCREEN_VIEW_FILE_LIST
 import com.instructure.pandautils.analytics.ScreenView
-import com.instructure.pandautils.dialogs.UploadFilesDialog
+import com.instructure.pandautils.binding.viewBinding
+import com.instructure.pandautils.features.file.upload.FileUploadDialogFragment
+import com.instructure.pandautils.features.file.upload.FileUploadDialogParent
 import com.instructure.pandautils.fragments.BaseSyncFragment
 import com.instructure.pandautils.models.EditableFile
 import com.instructure.pandautils.utils.*
 import com.instructure.teacher.R
 import com.instructure.teacher.adapters.FileListAdapter
+import com.instructure.teacher.databinding.FragmentFileListBinding
 import com.instructure.teacher.dialog.CreateFolderDialog
 import com.instructure.teacher.dialog.NoInternetConnectionDialog
-import com.instructure.pandautils.utils.FileFolderDeletedEvent
-import com.instructure.pandautils.utils.FileFolderUpdatedEvent
 import com.instructure.teacher.factory.FileListPresenterFactory
 import com.instructure.teacher.features.files.search.FileSearchFragment
 import com.instructure.teacher.holders.FileFolderViewHolder
@@ -52,10 +54,10 @@ import com.instructure.teacher.utils.setupBackButton
 import com.instructure.teacher.utils.setupMenu
 import com.instructure.teacher.utils.viewMedia
 import com.instructure.teacher.viewinterface.FileListView
-import kotlinx.android.synthetic.main.fragment_file_list.*
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
+import java.util.*
 
 @ScreenView(SCREEN_VIEW_FILE_LIST)
 class FileListFragment : BaseSyncFragment<
@@ -63,11 +65,11 @@ class FileListFragment : BaseSyncFragment<
         FileListPresenter,
         FileListView,
         FileFolderViewHolder,
-        FileListAdapter>(), FileListView {
+        FileListAdapter>(), FileListView, FileUploadDialogParent {
+
+    private val binding by viewBinding(FragmentFileListBinding::bind)
 
     private lateinit var mRecyclerView: RecyclerView
-
-    private val courseColor by lazy { ColorKeeper.getOrGenerateColor(mCanvasContext) }
 
     private var mCanvasContext: CanvasContext by ParcelableArg(Course())
     private var currentFolder: FileFolder by ParcelableArg(FileFolder())
@@ -82,7 +84,7 @@ class FileListFragment : BaseSyncFragment<
                 override fun onAnimationStart(animation: Animation?) = Unit
                 override fun onAnimationRepeat(animation: Animation?) = Unit
                 override fun onAnimationEnd(animation: Animation?) {
-                    addFab.contentDescription = getString(R.string.hideCreateFileFolderFabContentDesc)
+                    binding.addFab.contentDescription = getString(R.string.hideCreateFileFolderFabContentDesc)
                 }
             })
         }
@@ -137,18 +139,18 @@ class FileListFragment : BaseSyncFragment<
     override fun layoutResId() = R.layout.fragment_file_list
     override fun onCreateView(view: View) = Unit
     override fun getPresenterFactory() = FileListPresenterFactory(currentFolder, mCanvasContext)
-    override val recyclerView: RecyclerView get() = fileListRecyclerView
+    override val recyclerView: RecyclerView get() = binding.fileListRecyclerView
 
     override fun onPresenterPrepared(presenter: FileListPresenter) {
         mRecyclerView = RecyclerViewUtils.buildRecyclerView(
-            rootView = rootView,
-            context = requireContext(),
-            recyclerAdapter = adapter,
-            presenter = presenter,
-            swipeToRefreshLayoutResId = R.id.swipeRefreshLayout,
-            recyclerViewResId = R.id.fileListRecyclerView,
-            emptyViewResId = R.id.emptyPandaView,
-            emptyViewText = getString(R.string.noFiles)
+                rootView = rootView,
+                context = requireContext(),
+                recyclerAdapter = adapter,
+                presenter = presenter,
+                swipeToRefreshLayoutResId = R.id.swipeRefreshLayout,
+                recyclerViewResId = R.id.fileListRecyclerView,
+                emptyViewResId = R.id.emptyPandaView,
+                emptyViewText = getString(R.string.noFiles)
         )
     }
 
@@ -176,17 +178,17 @@ class FileListFragment : BaseSyncFragment<
     }
 
     override fun createAdapter(): FileListAdapter {
-        return FileListAdapter(requireContext(), courseColor, presenter) {
+        return FileListAdapter(requireContext(), mCanvasContext.textAndIconColor, presenter) {
             if (it.displayName.isValid()) {
                 // This is a file
-                val editableFile = EditableFile(it, presenter.usageRights, presenter.licenses, courseColor, presenter.mCanvasContext, R.drawable.ic_document)
+                val editableFile = EditableFile(it, presenter.usageRights, presenter.licenses, mCanvasContext.backgroundColor, presenter.mCanvasContext, R.drawable.ic_document)
                 if (it.isHtmlFile) {
                     /* An HTML file can reference other canvas files as resources (e.g. CSS files) and must be
                     accessed as an authenticated preview to work correctly */
-                    val bundle = ViewHtmlFragment.makeAuthSessionBundle(mCanvasContext, it, it.displayName.orEmpty(), courseColor, editableFile)
+                    val bundle = ViewHtmlFragment.makeAuthSessionBundle(mCanvasContext, it, it.displayName.orEmpty(), mCanvasContext.backgroundColor, editableFile)
                     RouteMatcher.route(requireActivity(), Route(ViewHtmlFragment::class.java, null, bundle))
                 } else {
-                    viewMedia(requireContext(), it.displayName.orEmpty(), it.contentType.orEmpty(), it.url, it.thumbnailUrl, it.displayName, R.drawable.ic_document, courseColor, editableFile)
+                    viewMedia(requireContext(), it.displayName.orEmpty(), it.contentType.orEmpty(), it.url, it.thumbnailUrl, it.displayName, R.drawable.ic_document, mCanvasContext.backgroundColor, editableFile)
                 }
             } else {
                 // This is a folder
@@ -196,7 +198,7 @@ class FileListFragment : BaseSyncFragment<
         }
     }
 
-    override fun onRefreshStarted() {
+    override fun onRefreshStarted() = with(binding) {
         //this prevents two loading spinners from happening during pull to refresh
         if (!swipeRefreshLayout.isRefreshing) {
             emptyPandaView.visibility = View.VISIBLE
@@ -205,10 +207,10 @@ class FileListFragment : BaseSyncFragment<
     }
 
     override fun onRefreshFinished() {
-        swipeRefreshLayout.isRefreshing = false
+        binding.swipeRefreshLayout.isRefreshing = false
     }
 
-    override fun checkIfEmpty() {
+    override fun checkIfEmpty() = with(binding) {
         when {
             !presenter.currentFolder.isRoot -> emptyPandaView.setMessageText(R.string.emptyFolder)
             mCanvasContext.isCourse -> emptyPandaView.setMessageText(R.string.noFilesSubtextCourse)
@@ -218,23 +220,24 @@ class FileListFragment : BaseSyncFragment<
         emptyPandaView.setEmptyViewImage(requireContext().getDrawableCompat(R.drawable.ic_panda_nofiles))
         RecyclerViewUtils.checkIfEmpty(emptyPandaView, mRecyclerView, swipeRefreshLayout, adapter, presenter.isEmpty)
     }
+
     override fun folderCreationError() = toast(R.string.folderCreationError)
 
     override fun folderCreationSuccess() {
         checkIfEmpty()
     }
 
-    private fun setupViews() {
-        ViewStyler.themeFAB(addFab, ThemePrefs.buttonColor)
-        ViewStyler.themeFAB(addFileFab, ThemePrefs.buttonColor)
-        ViewStyler.themeFAB(addFolderFab, ThemePrefs.buttonColor)
+    private fun setupViews() = with(binding) {
+        ViewStyler.themeFAB(addFab)
+        ViewStyler.themeFAB(addFileFab)
+        ViewStyler.themeFAB(addFolderFab)
 
         addFab.setOnClickListener { animateFabs() }
         addFileFab.setOnClickListener {
             animateFabs()
-            handleClick(requireFragmentManager()) {
-                val bundle = UploadFilesDialog.createContextBundle(null, mCanvasContext, presenter.currentFolder.id)
-                UploadFilesDialog.show(fragmentManager, bundle) { _ -> }
+            handleClick(childFragmentManager) {
+                val bundle = FileUploadDialogFragment.createContextBundle(null, mCanvasContext, presenter.currentFolder.id)
+                FileUploadDialogFragment.newInstance(bundle).show(childFragmentManager, FileUploadDialogFragment.TAG)
             }
         }
 
@@ -250,20 +253,28 @@ class FileListFragment : BaseSyncFragment<
         mRecyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
                 super.onScrolled(recyclerView, dx, dy)
-                    if (dy > 0 && addFab.isShown) {
-                        if (fabOpen) {
-                            animateFabs()
-                        }
-                        addFab.hide()
-                    } else if (dy < 0 && !addFab.isShown) {
-                        addFab.show()
+                if (dy > 0 && addFab.isShown) {
+                    if (fabOpen) {
+                        animateFabs()
                     }
+                    addFab.hide()
+                } else if (dy < 0 && !addFab.isShown) {
+                    addFab.show()
+                }
             }
         })
     }
 
-    private fun setupToolbar() {
-        fileListToolbar.setupBackButton(this)
+    override fun workInfoLiveDataCallback(uuid: UUID?, workInfoLiveData: LiveData<WorkInfo>) {
+        workInfoLiveData.observe(viewLifecycleOwner) {
+            if (it.state == WorkInfo.State.SUCCEEDED) {
+                presenter.refresh(true)
+            }
+        }
+    }
+
+    private fun setupToolbar() = with(binding) {
+        fileListToolbar.setupBackButton(this@FileListFragment)
 
         fileListToolbar.subtitle = presenter.mCanvasContext.name
 
@@ -289,40 +300,40 @@ class FileListFragment : BaseSyncFragment<
         if (mCanvasContext.isUser) {
             // User's files, no CanvasContext
             ViewStyler.themeToolbarColored(requireActivity(), fileListToolbar, ThemePrefs.primaryColor, ThemePrefs.primaryTextColor)
-        } else ViewStyler.themeToolbarColored(requireActivity(), fileListToolbar, courseColor, requireContext().getColor(R.color.white))
+        } else ViewStyler.themeToolbarColored(requireActivity(), fileListToolbar, mCanvasContext.backgroundColor, requireContext().getColor(R.color.white))
     }
 
     private fun animateFabs() = if (fabOpen) {
-        addFab.startAnimation(fabRotateBackwards)
-        addFab.announceForAccessibility(getString(R.string.a11y_create_file_folder_gone))
-        addFab.contentDescription = getString(R.string.createFileFolderFabContentDesc)
-        addFolderFab.startAnimation(fabHide)
-        addFolderFab.isClickable = false
+        binding.addFab.startAnimation(fabRotateBackwards)
+        binding.addFab.announceForAccessibility(getString(R.string.a11y_create_file_folder_gone))
+        binding.addFab.contentDescription = getString(R.string.createFileFolderFabContentDesc)
+        binding.addFolderFab.startAnimation(fabHide)
+        binding.addFolderFab.isClickable = false
 
-        addFileFab.startAnimation(fabHide)
-        addFileFab.isClickable = false
+        binding.addFileFab.startAnimation(fabHide)
+        binding.addFileFab.isClickable = false
 
         // Needed for accessibility
-        addFileFab.setInvisible()
-        addFolderFab.setInvisible()
+        binding.addFileFab.setInvisible()
+        binding.addFolderFab.setInvisible()
         fabOpen = false
     } else {
-        addFab.startAnimation(fabRotateForward)
-        addFab.announceForAccessibility(getString(R.string.a11y_create_file_folder_visible))
-        addFab.contentDescription = getString(R.string.hideCreateFileFolderFabContentDesc)
-        addFolderFab.apply {
+        binding.addFab.startAnimation(fabRotateForward)
+        binding.addFab.announceForAccessibility(getString(R.string.a11y_create_file_folder_visible))
+        binding.addFab.contentDescription = getString(R.string.hideCreateFileFolderFabContentDesc)
+        binding.addFolderFab.apply {
             startAnimation(fabReveal)
             isClickable = true
         }
 
-        addFileFab.apply {
+        binding.addFileFab.apply {
             startAnimation(fabReveal)
             isClickable = true
         }
 
         // Needed for accessibility
-        addFileFab.setVisible()
-        addFolderFab.setVisible()
+        binding.addFileFab.setVisible()
+        binding.addFolderFab.setVisible()
 
         fabOpen = true
     }

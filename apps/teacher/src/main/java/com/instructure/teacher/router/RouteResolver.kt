@@ -5,8 +5,13 @@ import com.instructure.canvasapi2.models.CanvasContext
 import com.instructure.canvasapi2.models.Course
 import com.instructure.interactions.router.Route
 import com.instructure.interactions.router.RouterParams
+import com.instructure.pandautils.features.dashboard.edit.EditDashboardFragment
 import com.instructure.pandautils.features.discussion.details.DiscussionDetailsWebViewFragment
-import com.instructure.pandautils.features.notification.preferences.NotificationPreferencesFragment
+import com.instructure.pandautils.features.discussion.router.DiscussionRouterFragment
+import com.instructure.pandautils.features.inbox.list.InboxFragment
+import com.instructure.pandautils.features.notification.preferences.EmailNotificationPreferencesFragment
+import com.instructure.pandautils.features.notification.preferences.PushNotificationPreferencesFragment
+import com.instructure.pandautils.fragments.HtmlContentFragment
 import com.instructure.pandautils.fragments.RemoteConfigParamsFragment
 import com.instructure.pandautils.utils.Const
 import com.instructure.pandautils.utils.argsWithContext
@@ -69,8 +74,10 @@ object RouteResolver {
             fragment = CourseBrowserFragment.newInstance(canvasContext!!)
         } else if (CourseBrowserEmptyFragment::class.java.isAssignableFrom(cls)) {
             fragment = CourseBrowserEmptyFragment.newInstance((canvasContext as Course?)!!)
-        } else if (CoursesFragment::class.java.isAssignableFrom(cls)) {
-            fragment = CoursesFragment.getInstance()
+        } else if (DashboardFragment::class.java.isAssignableFrom(cls)) {
+            fragment = DashboardFragment.getInstance()
+        } else if (EditDashboardFragment::class.java.isAssignableFrom(cls)) {
+            fragment = EditDashboardFragment.newInstance(route)
         } else if (AssignmentListFragment::class.java.isAssignableFrom(cls)) {
             fragment = AssignmentListFragment.getInstance(canvasContext!!, route.arguments)
         } else if (AssignmentDetailsFragment::class.java.isAssignableFrom(cls)) {
@@ -85,8 +92,6 @@ object RouteResolver {
             fragment = EditAssignmentDetailsFragment.newInstance((canvasContext as Course?)!!, route.arguments)
         } else if (AssigneeListFragment::class.java.isAssignableFrom(cls)) {
             fragment = AssigneeListFragment.newInstance(route.arguments)
-        } else if (EditFavoritesFragment::class.java.isAssignableFrom(cls)) {
-            fragment = EditFavoritesFragment.newInstance(route.arguments)
         } else if (CourseSettingsFragment::class.java.isAssignableFrom(cls)) {
             fragment = CourseSettingsFragment.newInstance((canvasContext as Course?)!!)
         } else if (QuizListFragment::class.java.isAssignableFrom(cls)) {
@@ -108,10 +113,12 @@ object RouteResolver {
             fragment = DiscussionsListFragment.newInstance(canvasContext!!)
         } else if (DiscussionsDetailsFragment::class.java.isAssignableFrom(cls)) {
             fragment = getDiscussionDetailsFragment(canvasContext, route)
+        } else if (DiscussionRouterFragment::class.java.isAssignableFrom(cls)) {
+            fragment = DiscussionRouterFragment.newInstance(canvasContext!!, route)
         } else if(DiscussionDetailsWebViewFragment::class.java.isAssignableFrom(cls)) {
             fragment = DiscussionDetailsWebViewFragment.newInstance(route)
         } else if (InboxFragment::class.java.isAssignableFrom(cls)) {
-            fragment = InboxFragment()
+            fragment = InboxFragment.newInstance(route)
         } else if (AddMessageFragment::class.java.isAssignableFrom(cls)) {
             fragment = AddMessageFragment.newInstance(route.arguments)
         } else if (MessageThreadFragment::class.java.isAssignableFrom(cls)) {
@@ -146,8 +153,10 @@ object RouteResolver {
             fragment = ProfileEditFragment.newInstance(route.arguments)
         } else if (FeatureFlagsFragment::class.java.isAssignableFrom(cls)) {
             fragment = FeatureFlagsFragment()
-        } else if (NotificationPreferencesFragment::class.java.isAssignableFrom(cls)) {
-            fragment = NotificationPreferencesFragment()
+        } else if (PushNotificationPreferencesFragment::class.java.isAssignableFrom(cls)) {
+            fragment = PushNotificationPreferencesFragment()
+        } else if (EmailNotificationPreferencesFragment::class.java.isAssignableFrom(cls)) {
+            fragment = EmailNotificationPreferencesFragment()
         } else if (RemoteConfigParamsFragment::class.java.isAssignableFrom(cls)) {
             fragment = RemoteConfigParamsFragment()
         } else if (LtiLaunchFragment::class.java.isAssignableFrom(cls)) {
@@ -180,6 +189,8 @@ object RouteResolver {
             fragment = FullscreenInternalWebViewFragment.newInstance(route.arguments)
         } else if (InternalWebViewFragment::class.java.isAssignableFrom(cls)) {
             fragment = InternalWebViewFragment.newInstance(route.arguments)
+        } else if (HtmlContentFragment::class.java.isAssignableFrom(cls)) {
+            fragment = HtmlContentFragment.newInstance(route.arguments)
         }//NOTE: These should remain at or near the bottom to give fragments that extend InternalWebViewFragment the chance first
 
         return fragment as Type?

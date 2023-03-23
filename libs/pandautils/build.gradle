@@ -17,7 +17,7 @@
 
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
-apply plugin: 'kotlin-android-extensions'
+apply plugin: 'kotlin-parcelize'
 apply plugin: 'kotlin-kapt'
 apply plugin: 'dagger.hilt.android.plugin'
 
@@ -75,16 +75,17 @@ android {
 
     buildFeatures {
         dataBinding true
+        viewBinding true
+    }
+
+    hilt {
+        enableAggregatingTask = false
     }
 }
 
 configurations {
     all*.exclude group: 'commons-logging', module: 'commons-logging'
     all*.exclude group: 'org.apache.httpcomponents', module: 'httpclient'
-}
-
-androidExtensions {
-    experimental = true
 }
 
 dependencies {
@@ -96,9 +97,14 @@ dependencies {
 
     implementation Libs.CAMERA_VIEW
 
+    implementation Libs.LOTTIE
+
     /* Kotlin */
     implementation Libs.KOTLIN_STD_LIB
     implementation Libs.ANDROIDX_BROWSER
+    implementation 'androidx.legacy:legacy-support-v4:1.0.0'
+    implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.4.1'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.4.1'
 
     /* Test Dependencies */
     testImplementation Libs.JUNIT
@@ -106,6 +112,8 @@ dependencies {
     testImplementation Libs.KOTLIN_COROUTINES_TEST
     testImplementation Libs.ANDROIDX_CORE_TESTING
     testImplementation Libs.THREETEN_BP
+
+    testImplementation project(path: ':pandautils')
 
     /* Media handling */
     api(Libs.GLIDE) {
@@ -118,20 +126,15 @@ dependencies {
 
     api Libs.ANDROID_SVG
 
-    // TODO These should be replaced in the future with Glide.
-    api 'com.squareup.picasso:picasso:2.5.2'
-    api 'de.hdodenhof:circleimageview:3.0.0'
-
     api Libs.EXOPLAYER
     api (Libs.SCALE_IMAGE_VIEW) {
         exclude group: "androidx.exifinterface"
     }
 
-    implementation platform(Libs.FIREBASE_BOM)
-    implementation Libs.FIREBASE_MESSAGING
-    implementation (Libs.FIREBASE_ANALYTICS) {
-        transitive = true
+    implementation platform(Libs.FIREBASE_BOM) {
+        exclude group: 'com.google.firebase', module: 'firebase-analytics'
     }
+    implementation Libs.FIREBASE_MESSAGING
     implementation (Libs.FIREBASE_CRASHLYTICS) {
         transitive = true
     }
@@ -154,6 +157,8 @@ dependencies {
     /* DI */
     implementation Libs.HILT
     kapt Libs.HILT_COMPILER
+    implementation Libs.HILT_ANDROIDX_WORK
+    kapt Libs.HILT_ANDROIDX_COMPILER
 
     /* AAC */
     implementation Libs.VIEW_MODEL
@@ -161,6 +166,12 @@ dependencies {
     implementation Libs.VIEW_MODE_SAVED_STATE
     implementation Libs.FRAGMENT_KTX
     kapt Libs.LIFECYCLE_COMPILER
+
+    /* ROOM */
+    implementation Libs.ROOM
+    kapt Libs.ROOM_COMPILER
+    implementation Libs.ROOM_COROUTINES
+    testImplementation Libs.ROOM_TEST
 
     implementation Libs.FLEXBOX_LAYOUT
 

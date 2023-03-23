@@ -35,11 +35,7 @@ import com.instructure.panda_annotations.FeatureCategory
 import com.instructure.panda_annotations.Priority
 import com.instructure.panda_annotations.TestCategory
 import com.instructure.panda_annotations.TestMetaData
-import com.instructure.student.ui.utils.StudentTest
-import com.instructure.student.ui.utils.ViewUtils
-import com.instructure.student.ui.utils.seedData
-import com.instructure.student.ui.utils.tokenLogin
-import com.instructure.student.ui.utils.uploadTextFile
+import com.instructure.student.ui.utils.*
 import dagger.hilt.android.testing.HiltAndroidTest
 import org.junit.Test
 import java.io.File
@@ -113,7 +109,7 @@ class FilesE2ETest: StudentTest() {
                 token = student.token
         )
 
-        Log.d(STEP_TAG,"Login with user: ${student.name}, login id: ${student.loginId} , password: ${student.password}")
+        Log.d(STEP_TAG,"Login with user: ${student.name}, login id: ${student.loginId}.")
         tokenLogin(student)
         dashboardPage.waitForRender()
 
@@ -145,7 +141,7 @@ class FilesE2ETest: StudentTest() {
         }
 
         Log.d(STEP_TAG,"Navigate to 'Files' menu in user left-side menubar.")
-        dashboardPage.gotoGlobalFiles()
+        leftSideNavigationDrawerPage.clickFilesMenu()
 
         Log.d(STEP_TAG,"Assert that there is a directory called 'Submissions' is displayed.")
         fileListPage.assertItemDisplayed("Submissions")
@@ -199,7 +195,7 @@ class FilesE2ETest: StudentTest() {
         ViewUtils.pressBackButton(4)
 
         Log.d(STEP_TAG,"Navigate to 'Files' menu in user left-side menubar.")
-        dashboardPage.gotoGlobalFiles()
+        leftSideNavigationDrawerPage.clickFilesMenu()
 
         Log.d(STEP_TAG,"Assert that there is a directory called 'unfiled' is displayed.")
         fileListPage.assertItemDisplayed("unfiled") // Our discussion attachment goes under "unfiled"

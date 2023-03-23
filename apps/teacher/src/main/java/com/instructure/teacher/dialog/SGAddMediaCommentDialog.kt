@@ -19,20 +19,16 @@ package com.instructure.teacher.dialog
 import android.app.Dialog
 import android.content.DialogInterface
 import android.os.Bundle
-import androidx.fragment.app.FragmentManager
+import android.view.View
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatDialogFragment
-import android.view.View
+import androidx.fragment.app.FragmentManager
 import com.instructure.canvasapi2.models.Assignment
-import com.instructure.pandautils.utils.onClick
+import com.instructure.pandautils.utils.*
 import com.instructure.teacher.R
 import com.instructure.teacher.activities.SpeedGraderActivity
-import com.instructure.pandautils.utils.BooleanArg
-import com.instructure.pandautils.utils.LongArg
-import com.instructure.pandautils.utils.dismissExisting
-import com.instructure.pandautils.utils.requestAccessibilityFocus
+import com.instructure.teacher.databinding.DialogSgAddAttachmentCommentBinding
 import com.instructure.teacher.view.MediaCommentDialogClosedEvent
-import kotlinx.android.synthetic.main.dialog_sg_add_attachment_comment.*
 import org.greenrobot.eventbus.EventBus
 
 class SGAddMediaCommentDialog : AppCompatDialogFragment() {
@@ -42,30 +38,38 @@ class SGAddMediaCommentDialog : AppCompatDialogFragment() {
     var studentId: Long by LongArg()
     var isGroup: Boolean by BooleanArg()
     var assignment: Assignment? = null
+    var onUploadFileClick: (() -> Unit)? = null
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
+        val binding = DialogSgAddAttachmentCommentBinding.inflate(layoutInflater)
         val dialog = AlertDialog.Builder(requireContext())
-                .setView(R.layout.dialog_sg_add_attachment_comment)
+                .setView(binding.root)
                 .create()
 
         dialog.setOnShowListener {
             // Setup clicks
-            dialog.audioComment.onClick {
+            binding.audioComment.onClick {
                 (activity as SpeedGraderActivity).requestAudioPermissions(studentId)
                 dismiss()
             }
 
-            dialog.videoComment.onClick {
+            binding.videoComment.onClick {
                 (activity as SpeedGraderActivity).requestVideoPermissions(studentId)
                 dismiss()
             }
 
-            // Setting these here rather than in XMl so TalkBack doesn't read them automatically without selecting them
-            dialog.audioText.text = getString(R.string.addAudioComment)
-            dialog.videoText.text = getString(R.string.addVideoComment)
+            binding.fileComment.onClick {
+                onUploadFileClick?.invoke()
+                dismiss()
+            }
 
-            dialog.videoComment.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
-            dialog.videoComment.requestAccessibilityFocus()
+            // Setting these here rather than in XMl so TalkBack doesn't read them automatically without selecting them
+            binding.audioText.text = getString(R.string.addAudioComment)
+            binding.videoText.text = getString(R.string.addVideoComment)
+            binding.fileText.text = getString(R.string.addFile)
+
+            binding.videoComment.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+            binding.videoComment.requestAccessibilityFocus()
         }
 
         return dialog
@@ -77,7 +81,14 @@ class SGAddMediaCommentDialog : AppCompatDialogFragment() {
     }
 
     companion object {
-        fun show(fm: FragmentManager, assignmentId: Long, courseId: Long, studentId: Long, isGroup: Boolean) {
+        fun show(
+            fm: FragmentManager,
+            assignmentId: Long,
+            courseId: Long,
+            studentId: Long,
+            isGroup: Boolean,
+            onUploadFileClick: () -> Unit
+        ) {
             fm.dismissExisting<SGAddMediaCommentDialog>()
 
             SGAddMediaCommentDialog().apply {
@@ -88,6 +99,7 @@ class SGAddMediaCommentDialog : AppCompatDialogFragment() {
 
                 this.studentId = studentId
                 this.isGroup = isGroup
+                this.onUploadFileClick = onUploadFileClick
             }.show(fm, SGAddMediaCommentDialog::class.java.simpleName)
         }
     }

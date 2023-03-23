@@ -18,7 +18,6 @@ package com.instructure.teacher.fragments
 
 import android.animation.ObjectAnimator
 import android.content.Intent
-import android.graphics.Color
 import android.net.Uri
 import android.view.MenuItem
 import android.view.View
@@ -28,10 +27,14 @@ import com.google.android.material.appbar.AppBarLayout
 import com.instructure.canvasapi2.models.CanvasContext
 import com.instructure.canvasapi2.models.Course
 import com.instructure.canvasapi2.models.Tab
-import com.instructure.canvasapi2.utils.*
+import com.instructure.canvasapi2.utils.Analytics
+import com.instructure.canvasapi2.utils.AnalyticsEventConstants
+import com.instructure.canvasapi2.utils.ApiPrefs
+import com.instructure.canvasapi2.utils.isValid
 import com.instructure.interactions.router.Route
 import com.instructure.pandautils.analytics.SCREEN_VIEW_COURSE_BROWSER
 import com.instructure.pandautils.analytics.ScreenView
+import com.instructure.pandautils.binding.viewBinding
 import com.instructure.pandautils.fragments.BaseSyncFragment
 import com.instructure.pandautils.utils.*
 import com.instructure.pandautils.utils.Const
@@ -39,6 +42,7 @@ import com.instructure.pandautils.utils.Const.CANVAS_STUDENT_ID
 import com.instructure.pandautils.utils.Const.MARKET_URI_PREFIX
 import com.instructure.teacher.R
 import com.instructure.teacher.adapters.CourseBrowserAdapter
+import com.instructure.teacher.databinding.FragmentCourseBrowserBinding
 import com.instructure.teacher.events.CourseUpdatedEvent
 import com.instructure.teacher.factory.CourseBrowserPresenterFactory
 import com.instructure.teacher.features.modules.list.ui.ModuleListFragment
@@ -49,7 +53,6 @@ import com.instructure.teacher.router.RouteMatcher
 import com.instructure.teacher.utils.*
 import com.instructure.teacher.view.CourseBrowserHeaderView
 import com.instructure.teacher.viewinterface.CourseBrowserView
-import kotlinx.android.synthetic.main.fragment_course_browser.*
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
@@ -63,6 +66,8 @@ class CourseBrowserFragment : BaseSyncFragment<
         CourseBrowserAdapter>(),
         CourseBrowserView, AppBarLayout.OnOffsetChangedListener {
 
+    private val binding by viewBinding(FragmentCourseBrowserBinding::bind)
+
     private var mCanvasContext: CanvasContext by ParcelableArg(Course())
 
     private val mCourseBrowserHeader by lazy { rootView.findViewById<CourseBrowserHeaderView>(R.id.courseBrowserHeader) }
@@ -71,13 +76,15 @@ class CourseBrowserFragment : BaseSyncFragment<
         fun newInstance(context: CanvasContext) = CourseBrowserFragment().apply {
             mCanvasContext = context
         }
+
+        fun makeRoute(canvasContext: CanvasContext?) = Route(CourseBrowserFragment::class.java, canvasContext)
     }
 
     private lateinit var mRecyclerView: RecyclerView
 
     override fun layoutResId(): Int = R.layout.fragment_course_browser
 
-    override val recyclerView: RecyclerView get() = courseBrowserRecyclerView
+    override val recyclerView: RecyclerView get() = binding.courseBrowserRecyclerView
     override fun withPagination() = false
     override fun getPresenterFactory() = CourseBrowserPresenterFactory(mCanvasContext) { tab, attendanceId ->
         //Filter for white-list supported features
@@ -104,7 +111,7 @@ class CourseBrowserFragment : BaseSyncFragment<
 
     override fun onCreateView(view: View) = Unit
 
-    override fun onPresenterPrepared(presenter: CourseBrowserPresenter) {
+    override fun onPresenterPrepared(presenter: CourseBrowserPresenter) = with(binding) {
         mRecyclerView = RecyclerViewUtils.buildRecyclerView(
             rootView = rootView,
             context = requireContext(),
@@ -115,7 +122,7 @@ class CourseBrowserFragment : BaseSyncFragment<
             emptyViewResId = R.id.emptyView,
             emptyViewText = getString(R.string.no_items_to_display_short)
         )
-        appBarLayout.addOnOffsetChangedListener(this)
+        appBarLayout.addOnOffsetChangedListener(this@CourseBrowserFragment)
         collapsingToolbarLayout.isTitleEnabled = false
     }
 
@@ -126,15 +133,15 @@ class CourseBrowserFragment : BaseSyncFragment<
         presenter.loadData(false)
     }
 
-    override fun onResume() {
+    override fun onResume() = with(binding) {
         super.onResume()
-        EventBus.getDefault().register(this)
+        EventBus.getDefault().register(this@CourseBrowserFragment)
         (presenter.canvasContext as? Course)?.let {
-            courseImage.setCourseImage(it, it.color, !TeacherPrefs.hideCourseColorOverlay)
+            courseImage.setCourseImage(it, it.backgroundColor, !TeacherPrefs.hideCourseColorOverlay)
         }
         courseBrowserTitle.text = presenter.canvasContext.name
-        courseBrowserSubtitle.text = (presenter.canvasContext as? Course)?.term?.name ?: ""
-        mCourseBrowserHeader.setTitleAndSubtitle(presenter.canvasContext.name ?: "", (presenter.canvasContext as? Course)?.term?.name ?: "")
+        courseBrowserSubtitle.text = (presenter.canvasContext as? Course)?.term?.name.orEmpty()
+        mCourseBrowserHeader.setTitleAndSubtitle(presenter.canvasContext.name.orEmpty(), (presenter.canvasContext as? Course)?.term?.name.orEmpty())
         setupToolbar()
         if (!presenter.isEmpty) {
             checkIfEmpty()
@@ -157,26 +164,26 @@ class CourseBrowserFragment : BaseSyncFragment<
         }
     }
 
-    private fun setupToolbar() {
+    private fun setupToolbar() = with(binding) {
         // If course color overlay is disabled we show a static toolbar and hide the text overlay
         val toolbar = if (TeacherPrefs.hideCourseColorOverlay) {
             overlayToolbar.setGone()
             courseHeader.setGone()
             noOverlayToolbar.title = presenter.canvasContext.name
             (presenter.canvasContext as? Course)?.term?.name?.let { noOverlayToolbar.subtitle = it }
-            noOverlayToolbar.setBackgroundColor(presenter.canvasContext.color)
+            noOverlayToolbar.setBackgroundColor(presenter.canvasContext.backgroundColor)
             noOverlayToolbar
         } else {
             noOverlayToolbar.setGone()
             overlayToolbar
         }
 
-        toolbar.setupBackButton(this)
+        toolbar.setupBackButton(this@CourseBrowserFragment)
         toolbar.setupMenu(R.menu.menu_course_browser, menuItemCallback)
         ViewStyler.colorToolbarIconsAndText(requireActivity(), toolbar, requireContext().getColor(R.color.white))
-        ViewStyler.setStatusBarDark(requireActivity(), presenter.canvasContext.color)
+        ViewStyler.setStatusBarDark(requireActivity(), presenter.canvasContext.backgroundColor)
 
-        collapsingToolbarLayout.setContentScrimColor(presenter.canvasContext.color)
+        collapsingToolbarLayout.setContentScrimColor(presenter.canvasContext.backgroundColor)
 
         // Hide image placeholder if color overlay is disabled and there is no valid image
         val hasImage = (presenter.canvasContext as? Course)?.imageUrl?.isValid() == true
@@ -193,7 +200,7 @@ class CourseBrowserFragment : BaseSyncFragment<
         courseBrowserTitle.requestAccessibilityFocus(600)
     }
 
-    val menuItemCallback: (MenuItem) -> Unit = { item ->
+    private val menuItemCallback: (MenuItem) -> Unit = { item ->
         when (item.itemId) {
             R.id.menu_course_browser_settings -> {
                 RouteMatcher.route(requireContext(), Route(CourseSettingsFragment::class.java, presenter.canvasContext))
@@ -202,7 +209,7 @@ class CourseBrowserFragment : BaseSyncFragment<
     }
 
     override fun createAdapter(): CourseBrowserAdapter {
-        return CourseBrowserAdapter(requireActivity(), presenter, presenter.canvasContext.color) { tab ->
+        return CourseBrowserAdapter(requireActivity(), presenter, presenter.canvasContext.textAndIconColor) { tab ->
             when (tab.tabId) {
                 Tab.ASSIGNMENTS_ID -> RouteMatcher.route(
                     requireContext(),
@@ -237,14 +244,14 @@ class CourseBrowserFragment : BaseSyncFragment<
                 )
                 Tab.MODULES_ID -> {
                     val bundle = ModuleListFragment.makeBundle(presenter.canvasContext)
-                    RouteMatcher.route(requireContext(), Route(ModuleListFragment::class.java, null, bundle))
+                    RouteMatcher.route(requireContext(), Route(ModuleListFragment::class.java, presenter.canvasContext, bundle))
                 }
                 Tab.STUDENT_VIEW -> {
                     Analytics.logEvent(AnalyticsEventConstants.STUDENT_VIEW_TAPPED)
                     presenter.handleStudentViewClick()
                 }
                 Tab.SYLLABUS_ID -> {
-                    RouteMatcher.route(requireContext(), Route(SyllabusFragment::class.java, presenter.canvasContext))
+                    RouteMatcher.route(requireContext(), Route(null, SyllabusFragment::class.java, presenter.canvasContext, presenter.canvasContext.makeBundle()))
                 }
                 else -> {
                     if (tab.type == Tab.TYPE_EXTERNAL) {
@@ -274,17 +281,22 @@ class CourseBrowserFragment : BaseSyncFragment<
     }
 
     override fun onRefreshFinished() {
-        swipeRefreshLayout.isRefreshing = false
+        binding.swipeRefreshLayout.isRefreshing = false
     }
 
-    override fun onRefreshStarted() = emptyView.setLoading()
-    override fun checkIfEmpty() = RecyclerViewUtils.checkIfEmpty(emptyView, courseBrowserRecyclerView,
-            swipeRefreshLayout, adapter, presenter.isEmpty)
+    override fun onRefreshStarted() = binding.emptyView.setLoading()
+    override fun checkIfEmpty() = RecyclerViewUtils.checkIfEmpty(
+        binding.emptyView,
+        binding.courseBrowserRecyclerView,
+        binding.swipeRefreshLayout,
+        adapter,
+        presenter.isEmpty
+    )
 
     /**
      * Manages state of titles & subtitles when users scrolls
      */
-    override fun onOffsetChanged(appBarLayout: AppBarLayout?, verticalOffset: Int) {
+    override fun onOffsetChanged(appBarLayout: AppBarLayout?, verticalOffset: Int) = with(binding) {
 
         val percentage = Math.abs(verticalOffset).div(appBarLayout?.totalScrollRange?.toFloat() ?: 1F)
 

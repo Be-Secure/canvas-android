@@ -33,36 +33,31 @@ import com.instructure.interactions.router.Route
 import com.instructure.pandautils.utils.*
 import com.instructure.teacher.R
 import com.instructure.teacher.adapters.StudentContextFragment
+import com.instructure.teacher.databinding.AdapterGradeableStudentSubmissionBinding
 import com.instructure.teacher.router.RouteMatcher
 import com.instructure.teacher.utils.getColorCompat
 import com.instructure.teacher.utils.getResForSubmission
 import com.instructure.teacher.utils.iconRes
 import com.instructure.teacher.utils.setAnonymousAvatar
-import kotlinx.android.synthetic.main.adapter_gradeable_student_submission.view.*
-import java.util.Locale
+import java.util.*
 
-class GradeableStudentSubmissionViewHolder(view: View) : RecyclerView.ViewHolder(view) {
-
-    companion object {
-        const val HOLDER_RES_ID = R.layout.adapter_gradeable_student_submission
-    }
-
+class GradeableStudentSubmissionViewHolder(private val binding: AdapterGradeableStudentSubmissionBinding) : RecyclerView.ViewHolder(binding.root) {
     fun bind(
         context: Context,
         gradeableStudentSubmission: GradeableStudentSubmission,
         assignment: Assignment,
         courseId: Long,
         callback: (GradeableStudentSubmission) -> Unit
-    ) = with(itemView) {
+    ) = with(binding) {
         // Set item a11y action to "view submission details"
-        setAccessibilityDelegate(object : View.AccessibilityDelegate() {
+        itemView.accessibilityDelegate = object : View.AccessibilityDelegate() {
             override fun onInitializeAccessibilityNodeInfo(v: View, info: AccessibilityNodeInfo) {
                 super.onInitializeAccessibilityNodeInfo(v, info)
                 val description = context.getString(R.string.a11y_viewSubmissionAction)
                 val customClick = AccessibilityNodeInfo.AccessibilityAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_CLICK.id, description)
                 info.addAction(customClick)
             }
-        })
+        }
 
         hiddenIcon.setGone()
         val assignee = gradeableStudentSubmission.assignee
@@ -74,6 +69,7 @@ class GradeableStudentSubmissionViewHolder(view: View) : RecyclerView.ViewHolder
             assignee is StudentAssignee -> {
                 ProfileUtils.loadAvatarForUser(studentAvatar, assignee.student.name, assignee.student.avatarUrl)
                 studentName.text = Pronouns.span(assignee.student.name, assignee.student.pronouns)
+                testStudentDescription.setVisible(assignee.student.isFakeStudent)
                 studentAvatar.setupAvatarA11y(assignee.name)
                 studentAvatar.onClick {
                     val bundle = StudentContextFragment.makeBundle(assignee.id, courseId)

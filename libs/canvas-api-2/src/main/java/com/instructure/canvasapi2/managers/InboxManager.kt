@@ -66,10 +66,10 @@ object InboxManager {
         InboxApi.getConversationsFiltered(scope, canvasContext, adapter, callback, params)
     }
 
-    fun getConversation(conversationId: Long, forceNetwork: Boolean, callback: StatusCallback<Conversation>) {
+    fun getConversation(conversationId: Long, forceNetwork: Boolean, callback: StatusCallback<Conversation>, markAsRead: Boolean = true) {
         val adapter = RestBuilder(callback)
         val params = RestParams(isForceReadFromNetwork = forceNetwork)
-        InboxApi.getConversation(adapter, callback, params, conversationId)
+        InboxApi.getConversation(adapter, callback, params, conversationId, markAsRead)
     }
 
     fun starConversation(
@@ -132,17 +132,17 @@ object InboxManager {
         )
     }
 
-    fun markConversationAsUnread(conversationId: Long, conversationEvent: String, callback: StatusCallback<Void>) {
+    fun markConversationAsUnread(conversationId: Long, callback: StatusCallback<Void>) {
         val adapter = RestBuilder(callback)
         val params = RestParams()
-        InboxApi.markConversationAsUnread(adapter, callback, params, conversationId, conversationEvent)
+        InboxApi.markConversationAsUnread(adapter, callback, params, conversationId)
     }
 
     fun getConversationSynchronous(conversationId: Long, forceNetwork: Boolean): Conversation? {
         val adapter = RestBuilder()
         val params = RestParams(isForceReadFromNetwork = forceNetwork)
         return try {
-            val response = InboxApi.getConversation(adapter, params, conversationId)
+            val response = InboxApi.getConversation(adapter, params, conversationId, markAsRead = true)
             if (response.isSuccessful) response.body() else null
         } catch (e: IOException) {
             null
